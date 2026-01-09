@@ -1,5 +1,7 @@
 # TPS — Temporal Positioning Standard
 
+![TPS — Temporal Positioning Standard](assets/tps-banner.svg)
+
 > **A universal coordinate system for Space, Time, and Context.**
 
 TPS defines a deterministic way to represent **when** something happened, **where** it happened, and **under which calendar**, using a single, machine-readable identifier.
