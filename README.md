@@ -529,4 +529,4 @@ CREATE TABLE events (
 
 ## 📄 License
 
-MIT © 2026 TPS Standards Working Group
+MIT — see [LICENSE](LICENSE).

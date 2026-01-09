@@ -213,4 +213,4 @@ console.log('Registered:', retrieved !== undefined);
 ---
 
 **Version:** 0.4.2  
-**License:** MIT © TPS Standards Working Group
+**License:** MIT — see [../LICENSE](../LICENSE).
