@@ -1,0 +1,44 @@
+{
+  "name": "@nextera.one/tps-standard",
+  "version": "0.5.0",
+  "description": "The Universal Protocol for Space-Time Coordinates. A standard URI scheme (tps://) combining WGS84 spatial data with hierarchical, multi-calendar temporal coordinates. Includes TPS-UID: time-first, reversible event identifiers.",
+  "keywords": [
+    "tps",
+    "tps-uid",
+    "time-protocol",
+    "space-time",
+    "reality-address",
+    "stuid",
+    "coordinates",
+    "calendar",
+    "gregorian",
+    "hijri",
+    "unix",
+    "geolocation"
+  ],
+  "homepage": "https://tps-standard.org",
+  "bugs": {
+    "url": "https://github.com/nextera-one/tps/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nextera-one/tps.git"
+  },
+  "license": "MIT",
+  "author": "Mohammed Ayesh",
+  "types": "dist/index.d.ts",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "node dist/index.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.6"
+  }
+}
