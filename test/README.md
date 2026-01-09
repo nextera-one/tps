@@ -5,9 +5,11 @@ This folder contains comprehensive guides and examples for using TPS calendar dr
 ## Files
 
 ### 1. `DRIVER_GUIDE.md`
+
 A complete guide on how to create, register, and use custom calendar drivers.
 
 **Topics covered:**
+
 - Basic usage of built-in calendars
 - Creating custom drivers (step-by-step)
 - Driver implementation checklist
@@ -18,9 +20,11 @@ A complete guide on how to create, register, and use custom calendar drivers.
 - Troubleshooting
 
 ### 2. `driver-usage.test.ts`
+
 Comprehensive executable examples demonstrating all driver functionality.
 
 **What it shows:**
+
 - Part 1: Built-in calendars (Gregorian, Unix)
 - Part 2: Creating a custom Hijri driver
 - Part 3: Cross-calendar conversion
@@ -58,10 +62,10 @@ node test/driver-usage.test.js
 ### Example minimal driver:
 
 ```typescript
-import { CalendarDriver, TPSComponents, CalendarCode } from '../src/index';
+import { CalendarDriver, TPSComponents, CalendarCode } from "../src/index";
 
 class MyDriver implements CalendarDriver {
-  readonly code: CalendarCode = 'custom';
+  readonly code: CalendarCode = "custom";
 
   fromGregorian(date: Date): Partial<TPSComponents> {
     // Convert Date to your calendar system
@@ -70,7 +74,7 @@ class MyDriver implements CalendarDriver {
 
   toGregorian(components: Partial<TPSComponents>): Date {
     // Convert your calendar back to Date
-    return new Date('2026-01-07T00:00:00Z');
+    return new Date("2026-01-07T00:00:00Z");
   }
 
   fromDate(date: Date): string {
@@ -81,7 +85,7 @@ class MyDriver implements CalendarDriver {
 
 // Register and use
 TPS.registerDriver(new MyDriver());
-const time = TPS.fromDate(new Date(), 'custom');
+const time = TPS.fromDate(new Date(), "custom");
 ```
 
 ## Key Concepts
@@ -127,16 +131,16 @@ Your Calendar → Gregorian Date → Another Calendar
 
 ```typescript
 const date = new Date();
-const greg = TPS.fromDate(date, 'greg');
-const hijri = TPS.fromDate(date, 'hij');
-const unix = TPS.fromDate(date, 'unix');
+const greg = TPS.fromDate(date, "greg");
+const hijri = TPS.fromDate(date, "hij");
+const unix = TPS.fromDate(date, "unix");
 ```
 
 ### Round-trip Conversion
 
 ```typescript
 const original = new Date();
-const timeStr = TPS.fromDate(original, 'greg');
+const timeStr = TPS.fromDate(original, "greg");
 const restored = TPS.toDate(timeStr);
 // Approximately equal (may lose milliseconds)
 ```
@@ -144,7 +148,7 @@ const restored = TPS.toDate(timeStr);
 ### With Location Data
 
 ```typescript
-const time = TPS.fromDate(new Date(), 'hij');
+const time = TPS.fromDate(new Date(), "hij");
 const components = TPS.parse(time);
 if (components) {
   components.latitude = 31.95;
@@ -183,22 +187,22 @@ Verify these work:
 ```typescript
 // 1. Basic conversion
 const comp = driver.fromGregorian(new Date());
-console.log('Has year:', comp.year !== undefined);
+console.log("Has year:", comp.year !== undefined);
 
 // 2. Round trip
-const date = new Date('2026-01-07T13:20:45Z');
+const date = new Date("2026-01-07T13:20:45Z");
 const comp = driver.fromGregorian(date);
 const restored = driver.toGregorian(comp);
-console.log('Same year:', date.getUTCFullYear() === restored.getUTCFullYear());
+console.log("Same year:", date.getUTCFullYear() === restored.getUTCFullYear());
 
 // 3. String generation
 const str = driver.fromDate(date);
-console.log('Valid format:', str.startsWith('T:'));
+console.log("Valid format:", str.startsWith("T:"));
 
 // 4. Registration
 TPS.registerDriver(driver);
 const retrieved = TPS.getDriver(driver.code);
-console.log('Registered:', retrieved !== undefined);
+console.log("Registered:", retrieved !== undefined);
 ```
 
 ## Next Steps
@@ -213,4 +217,4 @@ console.log('Registered:', retrieved !== undefined);
 ---
 
 **Version:** 0.4.2  
-**License:** MIT — see [../LICENSE](../LICENSE).
+**License:** Apache-2.0 — see [../LICENSE](../LICENSE).

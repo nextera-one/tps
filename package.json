@@ -24,7 +24,7 @@
     "type": "git",
     "url": "git+https://github.com/nextera-one/tps.git"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Mohammed Ayesh",
   "types": "dist/index.d.ts",
   "main": "dist/index.js",
