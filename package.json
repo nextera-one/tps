@@ -1,6 +1,6 @@
 {
   "name": "@nextera.one/tps-standard",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "The Universal Protocol for Space-Time Coordinates. A standard URI scheme (tps://) combining WGS84 spatial data with hierarchical, multi-calendar temporal coordinates. Includes TPS-UID: time-first, reversible event identifiers.",
   "keywords": [
     "tps",
