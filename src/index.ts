@@ -2,12 +2,18 @@
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
  * @packageDocumentation
- * @version 0.4.2
+ * @version 0.5.0
  * @license Apache-2.0
  * @copyright 2026 TPS Standards Working Group
+ *
+ * v0.5.0 Changes:
+ * - Added Actor anchor (A:) for provenance tracking
+ * - Added Signature (!) for cryptographic verification
+ * - Added structural anchors (bldg, floor, room, zone)
+ * - Added geospatial cell systems (S2, H3, Plus Code, what3words)
  */
 
-export type CalendarCode = "greg" | "hij" | "jul" | "holo" | "unix";
+export type CalendarCode = 'greg' | 'hij' | 'jul' | 'holo' | 'unix';
 
 export interface TPSComponents {
   // --- TEMPORAL ---
@@ -22,17 +28,44 @@ export interface TPSComponents {
   second?: number;
   unixSeconds?: number;
 
-  // --- SPATIAL ---
+  // --- SPATIAL: GPS Coordinates ---
   latitude?: number;
   longitude?: number;
   altitude?: number;
 
+  // --- SPATIAL: Geospatial Cells ---
+  /** Google S2 cell ID (hierarchical, prefix-searchable) */
+  s2Cell?: string;
+  /** Uber H3 cell ID (hexagonal grid) */
+  h3Cell?: string;
+  /** Open Location Code / Plus Code */
+  plusCode?: string;
+  /** what3words address (e.g. "filled.count.soap") */
+  what3words?: string;
+
+  // --- SPATIAL: Structural Anchors ---
+  /** Physical building identifier */
+  building?: string;
+  /** Vertical division (level) */
+  floor?: string;
+  /** Enclosed space identifier */
+  room?: string;
+  /** Logical area within building */
+  zone?: string;
+
+  // --- SPATIAL: Privacy Markers ---
   /** Technical missing data (e.g. server log without GPS) */
   isUnknownLocation?: boolean;
   /** Removed for legal/security reasons (e.g. GDPR) */
   isRedactedLocation?: boolean;
   /** Masked by user preference (e.g. "Don't show my location") */
   isHiddenLocation?: boolean;
+
+  // --- PROVENANCE ---
+  /** Actor anchor - identifies observer/witness (e.g. "did:web:sensor.example.com", "node:gateway-01") */
+  actor?: string;
+  /** Verification hash appended to time (e.g. "sha256:8f3e2a...") */
+  signature?: string;
 
   // --- CONTEXT ---
   extensions?: Record<string, string>;
@@ -229,23 +262,51 @@ export class TPS {
   }
 
   // --- REGEX ---
+  // Updated for v0.5.0: supports L: anchors, A: actor, ! signature, structural & geospatial anchors
+  // Note: Complex regex - carefully balanced parentheses
   private static readonly REGEX_URI = new RegExp(
-    "^tps://(?<space>unknown|redacted|hidden|(?<lat>-?\\d+(?:\\.\\d+)?),(?<lon>-?\\d+(?:\\.\\d+)?)(?:,(?<alt>-?\\d+(?:\\.\\d+)?)m?)?)@T:(?<calendar>[a-z]{3,4})\\.(?:(?<unix>s\\d+(?:\\.\\d+)?)|m(?<millennium>-?\\d+)(?:\\.c(?<century>\\d+)(?:\\.y(?<year>\\d+)(?:\\.M(?<month>\\d{1,2})(?:\\.d(?<day>\\d{1,2})(?:\\.h(?<hour>\\d{1,2})(?:\\.n(?<minute>\\d{1,2})(?:\\.s(?<second>\\d{1,2}(?:\\.\\d+)?))?)?)?)?)?)?)?)?(?:;(?<extensions>[a-z0-9\\.\\-\\_]+))?$"
+    '^tps://' +
+      // Location part (L: prefix optional for backward compat)
+      '(?:L:)?(?<space>' +
+      '~|-|unknown|redacted|hidden|' + // Privacy markers
+      's2=(?<s2>[a-fA-F0-9]+)|' + // S2 cell
+      'h3=(?<h3>[a-fA-F0-9]+)|' + // H3 cell
+      'plus=(?<plus>[A-Z0-9+]+)|' + // Plus Code
+      'w3w=(?<w3w>[a-z]+\\.[a-z]+\\.[a-z]+)|' + // what3words
+      'bldg=(?<bldg>[\\w-]+)(?:\\.floor=(?<floor>[\\w-]+))?(?:\\.room=(?<room>[\\w-]+))?(?:\\.zone=(?<zone>[\\w-]+))?|' + // Structural
+      '(?<lat>-?\\d+(?:\\.\\d+)?),(?<lon>-?\\d+(?:\\.\\d+)?)(?:,(?<alt>-?\\d+(?:\\.\\d+)?)m?)?' + // GPS
+      ')' +
+      // Optional Actor anchor
+      '(?:/A:(?<actor>[^/@]+))?' +
+      // Time part separator
+      '[/@]T:(?<calendar>[a-z]{3,4})\\.' +
+      // Time components
+      '(?:(?<unix>s\\d+(?:\\.\\d+)?)|m(?<millennium>-?\\d+)(?:\\.c(?<century>\\d+)(?:\\.y(?<year>\\d+)(?:\\.M(?<month>\\d{1,2})(?:\\.d(?<day>\\d{1,2})(?:\\.h(?<hour>\\d{1,2})(?:\\.n(?<minute>\\d{1,2})(?:\\.s(?<second>\\d{1,2}(?:\\.\\d+)?))?)?)?)?)?)?)?)' +
+      // Optional signature
+      '(?:!(?<signature>[^;?#]+))?' +
+      // Optional extensions
+      '(?:;(?<extensions>[a-z0-9.\\-_=]+))?' +
+      // Optional query params
+      '(?:\\?(?<params>[^#]+))?' +
+      // Optional context
+      '(?:#(?<context>.+))?$',
   );
 
   private static readonly REGEX_TIME = new RegExp(
-    "^T:(?<calendar>[a-z]{3,4})\\.(?:(?<unix>s\\d+(?:\\.\\d+)?)|m(?<millennium>-?\\d+)(?:\\.c(?<century>\\d+)(?:\\.y(?<year>\\d+)(?:\\.M(?<month>\\d{1,2})(?:\\.d(?<day>\\d{1,2})(?:\\.h(?<hour>\\d{1,2})(?:\\.n(?<minute>\\d{1,2})(?:\\.s(?<second>\\d{1,2}(?:\\.\\d+)?))?)?)?)?)?)?)?)?$"
+    '^T:(?<calendar>[a-z]{3,4})\\.' +
+      '(?:(?<unix>s\\d+(?:\\.\\d+)?)|m(?<millennium>-?\\d+)(?:\\.c(?<century>\\d+)(?:\\.y(?<year>\\d+)(?:\\.M(?<month>\\d{1,2})(?:\\.d(?<day>\\d{1,2})(?:\\.h(?<hour>\\d{1,2})(?:\\.n(?<minute>\\d{1,2})(?:\\.s(?<second>\\d{1,2}(?:\\.\\d+)?))?)?)?)?)?)?)?)' +
+      '(?:!(?<signature>[^;?#]+))?$',
   );
 
   // --- CORE METHODS ---
 
   static validate(input: string): boolean {
-    if (input.startsWith("tps://")) return this.REGEX_URI.test(input);
+    if (input.startsWith('tps://')) return this.REGEX_URI.test(input);
     return this.REGEX_TIME.test(input);
   }
 
   static parse(input: string): TPSComponents | null {
-    if (input.startsWith("tps://")) {
+    if (input.startsWith('tps://')) {
       const match = this.REGEX_URI.exec(input);
       if (!match || !match.groups) return null;
       return this._mapGroupsToComponents(match.groups);
@@ -261,26 +322,45 @@ export class TPS {
    * @returns Full URI string (e.g. "tps://...").
    */
   static toURI(comp: TPSComponents): string {
-    // 1. Build Space Part
-    let spacePart = "unknown"; // Default safe fallback
+    // 1. Build Space Part (L: anchor)
+    let spacePart = 'L:-'; // Default: unknown
 
     if (comp.isHiddenLocation) {
-      spacePart = "hidden";
+      spacePart = 'L:~';
     } else if (comp.isRedactedLocation) {
-      spacePart = "redacted";
+      spacePart = 'L:redacted';
     } else if (comp.isUnknownLocation) {
-      spacePart = "unknown";
+      spacePart = 'L:-';
+    } else if (comp.s2Cell) {
+      spacePart = `L:s2=${comp.s2Cell}`;
+    } else if (comp.h3Cell) {
+      spacePart = `L:h3=${comp.h3Cell}`;
+    } else if (comp.plusCode) {
+      spacePart = `L:plus=${comp.plusCode}`;
+    } else if (comp.what3words) {
+      spacePart = `L:w3w=${comp.what3words}`;
+    } else if (comp.building) {
+      spacePart = `L:bldg=${comp.building}`;
+      if (comp.floor) spacePart += `.floor=${comp.floor}`;
+      if (comp.room) spacePart += `.room=${comp.room}`;
+      if (comp.zone) spacePart += `.zone=${comp.zone}`;
     } else if (comp.latitude !== undefined && comp.longitude !== undefined) {
-      spacePart = `${comp.latitude},${comp.longitude}`;
+      spacePart = `L:${comp.latitude},${comp.longitude}`;
       if (comp.altitude !== undefined) {
         spacePart += `,${comp.altitude}m`;
       }
     }
 
-    // 2. Build Time Part
+    // 2. Build Actor Part (A: anchor) - optional
+    let actorPart = '';
+    if (comp.actor) {
+      actorPart = `/A:${comp.actor}`;
+    }
+
+    // 3. Build Time Part
     let timePart = `T:${comp.calendar}`;
 
-    if (comp.calendar === "unix" && comp.unixSeconds !== undefined) {
+    if (comp.calendar === 'unix' && comp.unixSeconds !== undefined) {
       timePart += `.s${comp.unixSeconds}`;
     } else {
       if (comp.millennium !== undefined) timePart += `.m${comp.millennium}`;
@@ -293,16 +373,21 @@ export class TPS {
       if (comp.second !== undefined) timePart += `.s${this.pad(comp.second)}`;
     }
 
-    // 3. Build Extensions
-    let extPart = "";
-    if (comp.extensions && Object.keys(comp.extensions).length > 0) {
-      const extStrings = Object.entries(comp.extensions).map(
-        ([k, v]) => `${k}${v}`
-      );
-      extPart = `;${extStrings.join(".")}`;
+    // 4. Add Signature (!) - optional
+    if (comp.signature) {
+      timePart += `!${comp.signature}`;
     }
 
-    return `tps://${spacePart}@${timePart}${extPart}`;
+    // 5. Build Extensions
+    let extPart = '';
+    if (comp.extensions && Object.keys(comp.extensions).length > 0) {
+      const extStrings = Object.entries(comp.extensions).map(
+        ([k, v]) => `${k}=${v}`,
+      );
+      extPart = `;${extStrings.join('.')}`;
+    }
+
+    return `tps://${spacePart}${actorPart}/${timePart}${extPart}`;
   }
 
   /**
@@ -314,7 +399,7 @@ export class TPS {
    */
   static fromDate(
     date: Date = new Date(),
-    calendar: CalendarCode = "greg"
+    calendar: CalendarCode = 'greg',
   ): string {
     // Check for registered driver first
     const driver = this.drivers.get(calendar);
@@ -323,12 +408,12 @@ export class TPS {
     }
 
     // Built-in handlers
-    if (calendar === "unix") {
+    if (calendar === 'unix') {
       const s = (date.getTime() / 1000).toFixed(3);
       return `T:unix.s${s}`;
     }
 
-    if (calendar === "greg") {
+    if (calendar === 'greg') {
       const fullYear = date.getUTCFullYear();
       const m = Math.floor(fullYear / 1000) + 1;
       const c = Math.floor((fullYear % 1000) / 100) + 1;
@@ -340,12 +425,12 @@ export class TPS {
       const s = date.getUTCSeconds();
 
       return `T:greg.m${m}.c${c}.y${y}.M${this.pad(M)}.d${this.pad(
-        d
+        d,
       )}.h${this.pad(h)}.n${this.pad(n)}.s${this.pad(s)}`;
     }
 
     throw new Error(
-      `Calendar driver '${calendar}' not implemented. Register a driver.`
+      `Calendar driver '${calendar}' not implemented. Register a driver.`,
     );
   }
 
@@ -382,11 +467,11 @@ export class TPS {
     }
 
     // Built-in handlers
-    if (p.calendar === "unix" && p.unixSeconds !== undefined) {
+    if (p.calendar === 'unix' && p.unixSeconds !== undefined) {
       return new Date(p.unixSeconds * 1000);
     }
 
-    if (p.calendar === "greg") {
+    if (p.calendar === 'greg') {
       const m = p.millennium || 0;
       const c = p.century || 1;
       const y = p.year || 0;
@@ -399,8 +484,8 @@ export class TPS {
           p.day || 1,
           p.hour || 0,
           p.minute || 0,
-          Math.floor(p.second || 0)
-        )
+          Math.floor(p.second || 0),
+        ),
       );
     }
     return null;
@@ -429,17 +514,17 @@ export class TPS {
   static parseCalendarDate(
     calendar: CalendarCode,
     dateString: string,
-    format?: string
+    format?: string,
   ): Partial<TPSComponents> | null {
     const driver = this.drivers.get(calendar);
     if (!driver) {
       throw new Error(
-        `Calendar driver '${calendar}' not found. Register a driver first.`
+        `Calendar driver '${calendar}' not found. Register a driver first.`,
       );
     }
     if (!driver.parseDate) {
       throw new Error(
-        `Driver '${calendar}' does not implement parseDate(). Use fromGregorian() instead.`
+        `Driver '${calendar}' does not implement parseDate(). Use fromGregorian() instead.`,
       );
     }
     return driver.parseDate(dateString, format);
@@ -479,7 +564,7 @@ export class TPS {
       isUnknownLocation?: boolean;
       isHiddenLocation?: boolean;
       isRedactedLocation?: boolean;
-    }
+    },
   ): string {
     const components = this.parseCalendarDate(calendar, dateString);
     if (!components) {
@@ -515,7 +600,7 @@ export class TPS {
   static formatCalendarDate(
     calendar: CalendarCode,
     components: Partial<TPSComponents>,
-    format?: string
+    format?: string,
   ): string {
     const driver = this.drivers.get(calendar);
     if (!driver) {
@@ -530,13 +615,13 @@ export class TPS {
   // --- INTERNAL HELPERS ---
 
   private static _mapGroupsToComponents(
-    g: Record<string, string>
+    g: Record<string, string>,
   ): TPSComponents {
     const components: any = {};
     components.calendar = g.calendar as CalendarCode;
 
     // Time Mapping
-    if (components.calendar === "unix" && g.unix) {
+    if (components.calendar === 'unix' && g.unix) {
       components.unixSeconds = parseFloat(g.unix.substring(1));
     } else {
       if (g.millennium) components.millennium = parseInt(g.millennium, 10);
@@ -549,11 +634,44 @@ export class TPS {
       if (g.second) components.second = parseFloat(g.second);
     }
 
+    // Signature Mapping
+    if (g.signature) {
+      components.signature = g.signature;
+    }
+
+    // Actor Mapping
+    if (g.actor) {
+      components.actor = g.actor;
+    }
+
     // Space Mapping
     if (g.space) {
-      if (g.space === "unknown") components.isUnknownLocation = true;
-      else if (g.space === "redacted") components.isRedactedLocation = true;
-      else if (g.space === "hidden") components.isHiddenLocation = true;
+      // Privacy markers
+      if (g.space === 'unknown' || g.space === '-') {
+        components.isUnknownLocation = true;
+      } else if (g.space === 'redacted') {
+        components.isRedactedLocation = true;
+      } else if (g.space === 'hidden' || g.space === '~') {
+        components.isHiddenLocation = true;
+      }
+      // Geospatial cells
+      else if (g.s2) {
+        components.s2Cell = g.s2;
+      } else if (g.h3) {
+        components.h3Cell = g.h3;
+      } else if (g.plus) {
+        components.plusCode = g.plus;
+      } else if (g.w3w) {
+        components.what3words = g.w3w;
+      }
+      // Structural anchors
+      else if (g.bldg) {
+        components.building = g.bldg;
+        if (g.floor) components.floor = g.floor;
+        if (g.room) components.room = g.room;
+        if (g.zone) components.zone = g.zone;
+      }
+      // GPS coordinates
       else {
         if (g.lat) components.latitude = parseFloat(g.lat);
         if (g.lon) components.longitude = parseFloat(g.lon);
@@ -564,11 +682,19 @@ export class TPS {
     // Extensions Mapping
     if (g.extensions) {
       const extObj: any = {};
-      const parts = g.extensions.split(".");
+      const parts = g.extensions.split('.');
       parts.forEach((p: string) => {
-        const key = p.charAt(0);
-        const val = p.substring(1);
-        if (key && val) extObj[key] = val;
+        const eqIdx = p.indexOf('=');
+        if (eqIdx > 0) {
+          const key = p.substring(0, eqIdx);
+          const val = p.substring(eqIdx + 1);
+          if (key && val) extObj[key] = val;
+        } else {
+          // Legacy format: first char is key
+          const key = p.charAt(0);
+          const val = p.substring(1);
+          if (key && val) extObj[key] = val;
+        }
       });
       components.extensions = extObj;
     }
@@ -578,7 +704,7 @@ export class TPS {
 
   private static pad(n: number): string {
     const s = n.toString();
-    return s.length < 2 ? "0" + s : s;
+    return s.length < 2 ? '0' + s : s;
   }
 }
 
@@ -589,7 +715,7 @@ export class TPS {
  */
 export type TPSUID7RBDecodeResult = {
   /** Version identifier */
-  version: "tpsuid7rb";
+  version: 'tpsuid7rb';
   /** Epoch milliseconds (UTC) */
   epochMs: number;
   /** Whether the TPS payload was compressed */
@@ -650,7 +776,7 @@ export class TPSUID7RB {
   /** Version 1 */
   private static readonly VER = 0x01;
   /** String prefix for base64url encoded form */
-  private static readonly PREFIX = "tpsuid7rb_";
+  private static readonly PREFIX = 'tpsuid7rb_';
   /** Regex for validating base64url encoded form */
   public static readonly REGEX = /^tpsuid7rb_[A-Za-z0-9_-]+$/;
 
@@ -671,10 +797,10 @@ export class TPSUID7RB {
     const epochMs = opts?.epochMs ?? this.epochMsFromTPSString(tps);
 
     if (!Number.isInteger(epochMs) || epochMs < 0) {
-      throw new Error("epochMs must be a non-negative integer");
+      throw new Error('epochMs must be a non-negative integer');
     }
     if (epochMs > 0xffffffffffff) {
-      throw new Error("epochMs exceeds 48-bit range");
+      throw new Error('epochMs exceeds 48-bit range');
     }
 
     const flags = compress ? 0x01 : 0x00;
@@ -698,7 +824,7 @@ export class TPSUID7RB {
 
     // Construct binary structure
     const out = new Uint8Array(
-      4 + 1 + 1 + 6 + 4 + lenVar.length + payload.length
+      4 + 1 + 1 + 6 + 4 + lenVar.length + payload.length,
     );
     let offset = 0;
 
@@ -740,7 +866,7 @@ export class TPSUID7RB {
   static decodeBinary(bytes: Uint8Array): TPSUID7RBDecodeResult {
     // Header min size: 4+1+1+6+4 + 1 (at least 1 byte varint) = 17
     if (bytes.length < 17) {
-      throw new Error("TPSUID7RB: too short");
+      throw new Error('TPSUID7RB: too short');
     }
 
     // MAGIC
@@ -750,7 +876,7 @@ export class TPSUID7RB {
       bytes[2] !== 0x55 ||
       bytes[3] !== 0x37
     ) {
-      throw new Error("TPSUID7RB: bad magic");
+      throw new Error('TPSUID7RB: bad magic');
     }
 
     // VERSION
@@ -779,7 +905,7 @@ export class TPSUID7RB {
     offset += bytesRead;
 
     if (offset + tpsLen > bytes.length) {
-      throw new Error("TPSUID7RB: length overflow");
+      throw new Error('TPSUID7RB: length overflow');
     }
 
     // TPS payload
@@ -787,7 +913,7 @@ export class TPSUID7RB {
     const tpsUtf8 = compressed ? this.inflateRaw(payload) : payload;
     const tps = new TextDecoder().decode(tpsUtf8);
 
-    return { version: "tpsuid7rb", epochMs, compressed, nonce, tps };
+    return { version: 'tpsuid7rb', epochMs, compressed, nonce, tps };
   }
 
   /**
@@ -812,7 +938,7 @@ export class TPSUID7RB {
   static decodeBinaryB64(id: string): TPSUID7RBDecodeResult {
     const s = id.trim();
     if (!s.startsWith(this.PREFIX)) {
-      throw new Error("TPSUID7RB: missing prefix");
+      throw new Error('TPSUID7RB: missing prefix');
     }
     const b64 = s.slice(this.PREFIX.length);
     const bytes = this.base64UrlDecode(b64);
@@ -859,7 +985,7 @@ export class TPSUID7RB {
    */
   private static generateTPSString(
     date: Date,
-    opts?: { latitude?: number; longitude?: number; altitude?: number }
+    opts?: { latitude?: number; longitude?: number; altitude?: number },
   ): string {
     const fullYear = date.getUTCFullYear();
     const m = Math.floor(fullYear / 1000) + 1;
@@ -871,13 +997,13 @@ export class TPSUID7RB {
     const n = date.getUTCMinutes();
     const s = date.getUTCSeconds();
 
-    const pad = (num: number) => num.toString().padStart(2, "0");
+    const pad = (num: number) => num.toString().padStart(2, '0');
 
     const timePart = `T:greg.m${m}.c${c}.y${y}.M${pad(M)}.d${pad(d)}.h${pad(
-      h
+      h,
     )}.n${pad(n)}.s${pad(s)}`;
 
-    let spacePart = "unknown";
+    let spacePart = 'unknown';
     if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
       spacePart = `${opts.latitude},${opts.longitude}`;
       if (opts.altitude !== undefined) {
@@ -895,19 +1021,19 @@ export class TPSUID7RB {
   static epochMsFromTPSString(tps: string): number {
     let time: string;
 
-    if (tps.includes("@")) {
+    if (tps.includes('@')) {
       // URI format: tps://...@T:greg...
-      const at = tps.indexOf("@");
+      const at = tps.indexOf('@');
       time = tps.slice(at + 1).trim();
-    } else if (tps.startsWith("T:")) {
+    } else if (tps.startsWith('T:')) {
       // Time-only format
       time = tps;
     } else {
-      throw new Error("TPS: unrecognized format");
+      throw new Error('TPS: unrecognized format');
     }
 
-    if (!time.startsWith("T:greg.")) {
-      throw new Error("TPS: only T:greg.* parsing is supported");
+    if (!time.startsWith('T:greg.')) {
+      throw new Error('TPS: only T:greg.* parsing is supported');
     }
 
     // Extract m (millennium), c (century), y (year)
@@ -935,7 +1061,7 @@ export class TPSUID7RB {
       }
       fullYear = year;
     } else {
-      throw new Error("TPS: missing year component");
+      throw new Error('TPS: missing year component');
     }
 
     const month = MMatch ? parseInt(MMatch[1], 10) : 1;
@@ -946,7 +1072,7 @@ export class TPSUID7RB {
 
     const epoch = Date.UTC(fullYear, month - 1, day, hour, minute, second);
     if (!Number.isFinite(epoch)) {
-      throw new Error("TPS: failed to compute epochMs");
+      throw new Error('TPS: failed to compute epochMs');
     }
 
     return epoch;
@@ -982,7 +1108,7 @@ export class TPSUID7RB {
 
     const n = Number(v);
     if (!Number.isSafeInteger(n)) {
-      throw new Error("TPSUID7RB: u48 not safe integer");
+      throw new Error('TPSUID7RB: u48 not safe integer');
     }
     return n;
   }
@@ -990,7 +1116,7 @@ export class TPSUID7RB {
   /** Encode unsigned integer as LEB128 varint */
   private static uvarintEncode(n: number): Uint8Array {
     if (!Number.isInteger(n) || n < 0) {
-      throw new Error("uvarint must be non-negative int");
+      throw new Error('uvarint must be non-negative int');
     }
     const out: number[] = [];
     let x = n >>> 0;
@@ -1005,19 +1131,19 @@ export class TPSUID7RB {
   /** Decode LEB128 varint */
   private static uvarintDecode(
     bytes: Uint8Array,
-    offset: number
+    offset: number,
   ): { value: number; bytesRead: number } {
     let x = 0;
     let s = 0;
     let i = 0;
     while (true) {
       if (offset + i >= bytes.length) {
-        throw new Error("uvarint overflow");
+        throw new Error('uvarint overflow');
       }
       const b = bytes[offset + i];
       if (b < 0x80) {
         if (i > 9 || (i === 9 && b > 1)) {
-          throw new Error("uvarint too large");
+          throw new Error('uvarint too large');
         }
         x |= b << s;
         return { value: x >>> 0, bytesRead: i + 1 };
@@ -1026,7 +1152,7 @@ export class TPSUID7RB {
       s += 7;
       i++;
       if (i > 10) {
-        throw new Error("uvarint too long");
+        throw new Error('uvarint too long');
       }
     }
   }
@@ -1038,35 +1164,35 @@ export class TPSUID7RB {
   /** Encode bytes to base64url (no padding) */
   private static base64UrlEncode(bytes: Uint8Array): string {
     // Node.js environment
-    if (typeof Buffer !== "undefined") {
+    if (typeof Buffer !== 'undefined') {
       return Buffer.from(bytes)
-        .toString("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/g, "");
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
     }
     // Browser environment
-    let binary = "";
+    let binary = '';
     for (let i = 0; i < bytes.length; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary)
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/g, "");
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
   }
 
   /** Decode base64url to bytes */
   private static base64UrlDecode(b64url: string): Uint8Array {
     // Add padding
     const padLen = (4 - (b64url.length % 4)) % 4;
-    const b64 = (b64url + "=".repeat(padLen))
-      .replace(/-/g, "+")
-      .replace(/_/g, "/");
+    const b64 = (b64url + '='.repeat(padLen))
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
 
     // Node.js environment
-    if (typeof Buffer !== "undefined") {
-      return new Uint8Array(Buffer.from(b64, "base64"));
+    if (typeof Buffer !== 'undefined') {
+      return new Uint8Array(Buffer.from(b64, 'base64'));
     }
     // Browser environment
     const binary = atob(b64);
@@ -1084,33 +1210,33 @@ export class TPSUID7RB {
   /** Compress using zlib deflate raw */
   private static deflateRaw(data: Uint8Array): Uint8Array {
     // Node.js environment
-    if (typeof require !== "undefined") {
+    if (typeof require !== 'undefined') {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const zlib = require("zlib");
+        const zlib = require('zlib');
         return new Uint8Array(zlib.deflateRawSync(Buffer.from(data)));
       } catch {
-        throw new Error("TPSUID7RB: compression not available");
+        throw new Error('TPSUID7RB: compression not available');
       }
     }
     // Browser: would need pako or similar library
-    throw new Error("TPSUID7RB: compression not available in browser");
+    throw new Error('TPSUID7RB: compression not available in browser');
   }
 
   /** Decompress using zlib inflate raw */
   private static inflateRaw(data: Uint8Array): Uint8Array {
     // Node.js environment
-    if (typeof require !== "undefined") {
+    if (typeof require !== 'undefined') {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const zlib = require("zlib");
+        const zlib = require('zlib');
         return new Uint8Array(zlib.inflateRawSync(Buffer.from(data)));
       } catch {
-        throw new Error("TPSUID7RB: decompression failed");
+        throw new Error('TPSUID7RB: decompression failed');
       }
     }
     // Browser: would need pako or similar library
-    throw new Error("TPSUID7RB: decompression not available in browser");
+    throw new Error('TPSUID7RB: decompression not available in browser');
   }
 
   // ---------------------------
@@ -1129,7 +1255,7 @@ export class TPSUID7RB {
   static seal(
     tps: string,
     privateKey: string | Buffer | Uint8Array,
-    opts?: TPSUID7RBEncodeOptions
+    opts?: TPSUID7RBEncodeOptions,
   ): Uint8Array {
     // 1. Create standard binary (unsealed first)
     // We force the SEAL flag (bit 1) to be 0 initially for the "content to sign"
@@ -1145,7 +1271,7 @@ export class TPSUID7RB {
 
     // Validate epoch
     if (!Number.isInteger(epochMs) || epochMs < 0 || epochMs > 0xffffffffffff) {
-      throw new Error("epochMs must be a valid 48-bit non-negative integer");
+      throw new Error('epochMs must be a valid 48-bit non-negative integer');
     }
 
     // Flags: Bit 0 = compress, Bit 1 = sealed
@@ -1199,9 +1325,9 @@ export class TPSUID7RB {
    */
   static verifyAndDecode(
     sealedBytes: Uint8Array,
-    publicKey: string | Buffer | Uint8Array
+    publicKey: string | Buffer | Uint8Array,
   ): TPSUID7RBDecodeResult {
-    if (sealedBytes.length < 18) throw new Error("TPSUID7RB: too short");
+    if (sealedBytes.length < 18) throw new Error('TPSUID7RB: too short');
 
     // Check Magic
     if (
@@ -1210,13 +1336,13 @@ export class TPSUID7RB {
       sealedBytes[2] !== 0x55 ||
       sealedBytes[3] !== 0x37
     ) {
-      throw new Error("TPSUID7RB: bad magic");
+      throw new Error('TPSUID7RB: bad magic');
     }
 
     // Check Flags for Sealed Bit (bit 1)
     const flags = sealedBytes[5];
     if ((flags & 0x02) === 0) {
-      throw new Error("TPSUID7RB: not a sealed UID");
+      throw new Error('TPSUID7RB: not a sealed UID');
     }
 
     // 1. Parse the structure to find where content ends
@@ -1225,13 +1351,13 @@ export class TPSUID7RB {
     // Decode LEN
     const { value: tpsLen, bytesRead } = this.uvarintDecode(
       sealedBytes,
-      offset
+      offset,
     );
     offset += bytesRead;
     const payloadEnd = offset + tpsLen;
 
     if (payloadEnd > sealedBytes.length) {
-      throw new Error("TPSUID7RB: length overflow (truncated)");
+      throw new Error('TPSUID7RB: length overflow (truncated)');
     }
 
     // The Content to verify matches exactly [0 ... payloadEnd]
@@ -1239,27 +1365,27 @@ export class TPSUID7RB {
 
     // After content: SealType (1 byte) + Signature
     if (sealedBytes.length <= payloadEnd + 1) {
-      throw new Error("TPSUID7RB: missing signature data");
+      throw new Error('TPSUID7RB: missing signature data');
     }
 
     const sealType = sealedBytes[payloadEnd];
     if (sealType !== 0x01) {
       throw new Error(
-        `TPSUID7RB: unsupported seal type 0x${sealType.toString(16)}`
+        `TPSUID7RB: unsupported seal type 0x${sealType.toString(16)}`,
       );
     }
 
     const signature = sealedBytes.slice(payloadEnd + 1);
     if (signature.length !== 64) {
       throw new Error(
-        `TPSUID7RB: invalid Ed25519 signature length ${signature.length}`
+        `TPSUID7RB: invalid Ed25519 signature length ${signature.length}`,
       );
     }
 
     // Verify
     const isValid = this.verifyEd25519(content, signature, publicKey);
     if (!isValid) {
-      throw new Error("TPSUID7RB: signature verification failed");
+      throw new Error('TPSUID7RB: signature verification failed');
     }
 
     // Decode (reuse standard logic, but ignoring the extra bytes at end is fine?)
@@ -1275,12 +1401,12 @@ export class TPSUID7RB {
 
   private static signEd25519(
     data: Uint8Array,
-    privateKey: string | Buffer | Uint8Array
+    privateKey: string | Buffer | Uint8Array,
   ): Uint8Array {
-    if (typeof require !== "undefined") {
+    if (typeof require !== 'undefined') {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const crypto = require("crypto");
+        const crypto = require('crypto');
         // Node's crypto.sign uses PEM or KeyObject, but for raw Ed25519 keys we might need 'crypto.sign(null, data, key)'
         // or ensure key is properly formatted.
         // For simplicity in Node 20+, crypto.sign(null, data, privateKey) works if key is KeyObject.
@@ -1293,8 +1419,8 @@ export class TPSUID7RB {
           // Let's assume standard Ed25519 standard implementation pattern logic:
           keyObj = crypto.createPrivateKey({
             key: Buffer.from(privateKey),
-            format: "der", // or 'pem' - strict.
-            type: "pkcs8",
+            format: 'der', // or 'pem' - strict.
+            type: 'pkcs8',
           });
           // Actually, simpler: construct key object from raw bytes if possible?
           // Node's crypto is strict. Let's try the simplest:
@@ -1308,11 +1434,11 @@ export class TPSUID7RB {
         // Handling RAW Ed25519 keys in Node requires specific 'crypto.createPrivateKey' with 'raw' format (Node 11.6+).
 
         const key =
-          typeof privateKey === "string" && !privateKey.includes("PRIVATE KEY")
+          typeof privateKey === 'string' && !privateKey.includes('PRIVATE KEY')
             ? crypto.createPrivateKey({
-                key: Buffer.from(privateKey, "hex"),
-                format: "pem",
-                type: "pkcs8",
+                key: Buffer.from(privateKey, 'hex'),
+                format: 'pem',
+                type: 'pkcs8',
               }) // Fallback guess
             : privateKey;
 
@@ -1321,27 +1447,27 @@ export class TPSUID7RB {
         return new Uint8Array(crypto.sign(null, data, key));
       } catch (e) {
         // If standard crypto fails (e.g. key format issue), throw
-        throw new Error("TPSUID7RB: signing failed (check key format)");
+        throw new Error('TPSUID7RB: signing failed (check key format)');
       }
     }
-    throw new Error("TPSUID7RB: signing not available in browser");
+    throw new Error('TPSUID7RB: signing not available in browser');
   }
 
   private static verifyEd25519(
     data: Uint8Array,
     signature: Uint8Array,
-    publicKey: string | Buffer | Uint8Array
+    publicKey: string | Buffer | Uint8Array,
   ): boolean {
-    if (typeof require !== "undefined") {
+    if (typeof require !== 'undefined') {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const crypto = require("crypto");
+        const crypto = require('crypto');
         return crypto.verify(null, data, publicKey, signature);
       } catch {
         return false;
       }
     }
-    throw new Error("TPSUID7RB: verification not available in browser");
+    throw new Error('TPSUID7RB: verification not available in browser');
   }
 
   // ---------------------------
@@ -1351,21 +1477,21 @@ export class TPSUID7RB {
   /** Generate cryptographically secure random bytes */
   private static randomBytes(length: number): Uint8Array {
     // Node.js environment
-    if (typeof require !== "undefined") {
+    if (typeof require !== 'undefined') {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const crypto = require("crypto");
+        const crypto = require('crypto');
         return new Uint8Array(crypto.randomBytes(length));
       } catch {
         // Fallback to crypto.getRandomValues
       }
     }
     // Browser or fallback
-    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
       const bytes = new Uint8Array(length);
       crypto.getRandomValues(bytes);
       return bytes;
     }
-    throw new Error("TPSUID7RB: no crypto available");
+    throw new Error('TPSUID7RB: no crypto available');
   }
 }
