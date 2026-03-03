@@ -33,34 +33,41 @@ function test(name: string, fn: () => boolean) {
 console.log('--- Part 1: Basic Encode/Decode ---\n');
 
 test('Base64url encode/decode roundtrip', () => {
-  const tps = 'tps://31.95,35.91,800m@T:greg.m3.c1.y26.M01.d09.h14.n30.s25';
+  const tps = 'tps://31.95,35.91,800m@T:greg.m3.c1.y26.m01.d09.h14.m30.s25';
+  const encoded = TPSUID7RB.encodeBinaryB64(tps);
+  const decoded = TPSUID7RB.decodeBinaryB64(encoded);
+  return decoded.tps === tps;
+});
+
+test('Ascending time string roundtrip', () => {
+  const tps = 'tps://unknown@T:greg.s25.m30.h14.d09.m01.y26.c1.m3';
   const encoded = TPSUID7RB.encodeBinaryB64(tps);
   const decoded = TPSUID7RB.decodeBinaryB64(encoded);
   return decoded.tps === tps;
 });
 
 test('Binary encode/decode roundtrip', () => {
-  const tps = 'tps://32,35@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://32,35@T:greg.m3.c1.y26.m01.d09';
   const bytes = TPSUID7RB.encodeBinary(tps);
   const decoded = TPSUID7RB.decodeBinary(bytes);
   return decoded.tps === tps;
 });
 
 test('Prefix is correct', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const encoded = TPSUID7RB.encodeBinaryB64(tps);
   return encoded.startsWith('tpsuid7rb_');
 });
 
 test('Magic bytes are TPU7', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const bytes = TPSUID7RB.encodeBinary(tps);
   const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
   return magic === 'TPU7';
 });
 
 test('Version byte is 0x01', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const bytes = TPSUID7RB.encodeBinary(tps);
   return bytes[4] === 0x01;
 });
@@ -74,21 +81,21 @@ console.log();
 console.log('--- Part 2: Compression ---\n');
 
 test('Compressed encode/decode roundtrip', () => {
-  const tps = 'tps://31.95,35.91,800m@T:greg.m3.c1.y26.M01.d09.h14.n30.s25';
+  const tps = 'tps://31.95,35.91,800m@T:greg.m3.c1.y26.m01.d09.h14.m30.s25';
   const encoded = TPSUID7RB.encodeBinaryB64(tps, { compress: true });
   const decoded = TPSUID7RB.decodeBinaryB64(encoded);
   return decoded.tps === tps && decoded.compressed === true;
 });
 
 test('Uncompressed flag is false', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const encoded = TPSUID7RB.encodeBinaryB64(tps, { compress: false });
   const decoded = TPSUID7RB.decodeBinaryB64(encoded);
   return decoded.compressed === false;
 });
 
 test('Compression flag bit is set correctly', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const compressed = TPSUID7RB.encodeBinary(tps, { compress: true });
   const uncompressed = TPSUID7RB.encodeBinary(tps, { compress: false });
   return (compressed[5] & 0x01) === 0x01 && (uncompressed[5] & 0x01) === 0x00;
@@ -103,14 +110,14 @@ console.log();
 console.log('--- Part 3: Epoch Time ---\n');
 
 test('Epoch time is extracted correctly', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09.h14.n30.s25';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09.h14.m30.s25';
   const decoded = TPSUID7RB.decodeBinaryB64(TPSUID7RB.encodeBinaryB64(tps));
   const expectedEpoch = Date.UTC(2026, 0, 9, 14, 30, 25);
   return decoded.epochMs === expectedEpoch;
 });
 
 test('Custom epochMs override works', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const customEpoch = 1700000000000;
   const encoded = TPSUID7RB.encodeBinaryB64(tps, { epochMs: customEpoch });
   const decoded = TPSUID7RB.decodeBinaryB64(encoded);
@@ -118,7 +125,7 @@ test('Custom epochMs override works', () => {
 });
 
 test('Epoch parsing from TPS with time-only format', () => {
-  const tps = 'tps://32,35@T:greg.m3.c1.y26.M06.d15.h10.n00.s00';
+  const tps = 'tps://32,35@T:greg.m3.c1.y26.m06.d15.h10.m00.s00';
   const encoded = TPSUID7RB.encodeBinaryB64(tps);
   const decoded = TPSUID7RB.decodeBinaryB64(encoded);
   const expected = Date.UTC(2026, 5, 15, 10, 0, 0);
@@ -134,7 +141,7 @@ console.log();
 console.log('--- Part 4: Validation ---\n');
 
 test('Valid TPS-UID passes validation', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const encoded = TPSUID7RB.encodeBinaryB64(tps);
   return TPSUID7RB.validateBinaryB64(encoded);
 });
@@ -244,14 +251,14 @@ console.log('--- Part 7: Edge Cases ---\n');
 
 test('Long TPS string roundtrip', () => {
   const tps =
-    'tps://31.9523456,35.9123456,1234.56m@T:greg.m3.c1.y26.M12.d31.h23.n59.s59;extension1;extension2;extension3';
+    'tps://31.9523456,35.9123456,1234.56m@T:greg.m3.c1.y26.m12.d31.h23.m59.s59;extension1;extension2;extension3';
   const encoded = TPSUID7RB.encodeBinaryB64(tps);
   const decoded = TPSUID7RB.decodeBinaryB64(encoded);
   return decoded.tps === tps;
 });
 
 test('Unicode in extensions survives roundtrip', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d01;note=تجربة';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d01;note=تجربة';
   const encoded = TPSUID7RB.encodeBinaryB64(tps);
   const decoded = TPSUID7RB.decodeBinaryB64(encoded);
   return decoded.tps === tps;
@@ -260,7 +267,7 @@ test('Unicode in extensions survives roundtrip', () => {
 test('Privacy location types preserved', () => {
   const types = ['unknown', 'hidden', 'redacted'];
   return types.every((type) => {
-    const tps = `tps://${type}@T:greg.m3.c1.y26.M01.d01`;
+    const tps = `tps://${type}@T:greg.m3.c1.y26.m01.d01`;
     const decoded = TPSUID7RB.decodeBinaryB64(TPSUID7RB.encodeBinaryB64(tps));
     return decoded.tps.includes(type);
   });
@@ -279,7 +286,7 @@ const crypto = require('crypto');
 const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519');
 
 test('Seal creates valid sealed binary', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const sealed = TPSUID7RB.seal(tps, privateKey);
   
   // Minimal length: Header(16) + Payload + SealType(1) + Sig(64)
@@ -288,14 +295,14 @@ test('Seal creates valid sealed binary', () => {
 });
 
 test('Verify and decode works for sealed UID', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09.h12.n00';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09.h12.m00';
   const sealed = TPSUID7RB.seal(tps, privateKey);
   const result = TPSUID7RB.verifyAndDecode(sealed, publicKey);
   return result.tps === tps;
 });
 
 test('Tampered sealed UID fails verification', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const sealed = TPSUID7RB.seal(tps, privateKey);
   
   // Tamper with payload (change a byte in the middle)
@@ -310,7 +317,7 @@ test('Tampered sealed UID fails verification', () => {
 });
 
 test('Verify fails with wrong public key', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const sealed = TPSUID7RB.seal(tps, privateKey);
   
   const { publicKey: otherKey } = crypto.generateKeyPairSync('ed25519');
@@ -324,7 +331,7 @@ test('Verify fails with wrong public key', () => {
 });
 
 test('Sealing with compression works', () => {
-  const tps = 'tps://31.95,35.91,800m@T:greg.m3.c1.y26.M01.d09.h14.n30.s25'; // Longer for compression
+  const tps = 'tps://31.95,35.91,800m@T:greg.m3.c1.y26.m01.d09.h14.m30.s25'; // Longer for compression
   const sealed = TPSUID7RB.seal(tps, privateKey, { compress: true });
   const result = TPSUID7RB.verifyAndDecode(sealed, publicKey);
   

@@ -12,7 +12,7 @@ function test(name, fn) {
 }
 
 // Basic tests
-const tps = 'tps://31.95,35.91,800m@T:greg.m3.c1.y26.M01.d09.h14.n30.s25';
+const tps = 'tps://31.95,35.91,800m@T:greg.m3.c1.y26.m01.d09.h14.m30.s25';
 
 test('Encode/decode roundtrip', () => {
   const encoded = TPSUID7RB.encodeBinaryB64(tps);
@@ -56,7 +56,7 @@ test('Generate creates valid TPS-UID', () => {
 const crypto = require('crypto');
 
 test('Unicode survives roundtrip', () => {
-  const unicodeTps = 'tps://unknown@T:greg.m3.c1.y26.M01.d01;note=test';
+  const unicodeTps = 'tps://unknown@T:greg.m3.c1.y26.m01.d01;note=test';
   const decoded = TPSUID7RB.decodeBinaryB64(TPSUID7RB.encodeBinaryB64(unicodeTps));
   return decoded.tps === unicodeTps;
 });
@@ -68,21 +68,21 @@ console.log('\n--- Sealing Tests ---');
 const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519');
 
 test('Seal creates valid binary structure', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const sealed = TPSUID7RB.seal(tps, privateKey);
   // Check seal flag (bit 1 of FLAGS at index 5)
   return (sealed[5] & 0x02) === 0x02 && sealed.length > 80;
 });
 
 test('Verify sealed UID', () => {
-  const tps = 'tps://32,35@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://32,35@T:greg.m3.c1.y26.m01.d09';
   const sealed = TPSUID7RB.seal(tps, privateKey);
   const result = TPSUID7RB.verifyAndDecode(sealed, publicKey);
   return result.tps === tps;
 });
 
 test('Tampered sealed UID fails', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const sealed = TPSUID7RB.seal(tps, privateKey);
   sealed[20] ^= 0xFF; // Tamper
   try {
@@ -94,7 +94,7 @@ test('Tampered sealed UID fails', () => {
 });
 
 test('Wrong key verification fails', () => {
-  const tps = 'tps://unknown@T:greg.m3.c1.y26.M01.d09';
+  const tps = 'tps://unknown@T:greg.m3.c1.y26.m01.d09';
   const sealed = TPSUID7RB.seal(tps, privateKey);
   const { publicKey: otherKey } = crypto.generateKeyPairSync('ed25519');
   try {

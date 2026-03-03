@@ -17,15 +17,15 @@ npm i @nextera.one/tps-standard
 ### Basic Example
 
 ```ts
-import { TPS } from "@nextera.one/tps-standard";
+import { TPS, CalendarCode } from "@nextera.one/tps-standard";
 
 // Create a TPS time string from current date
-const nowTime = TPS.fromDate(new Date(), "greg");
+const nowTime = TPS.fromDate(new Date(), 'greg');
 console.log(nowTime);
-// Output: "T:greg.m3.c1.y26.M01.d07.h13.n20.s45"
+// Output: "T:greg.m3.c1.y26.m01.d07.h13.m20.s45"
 
 // Parse a full TPS URI with location and extensions
-const uri = "tps://31.95,35.91,800m@T:greg.m3.c1.y26.M01.d07.h13.n20;f4.r7";
+const uri = "tps://31.95,35.91,800m@T:greg.m3.c1.y26.m01.d07.h13.m20;f4.r7";
 const parsed = TPS.parse(uri);
 console.log(parsed);
 // { latitude: 31.95, longitude: 35.91, altitude: 800, calendar: 'greg', year: 26, ... }
@@ -41,7 +41,7 @@ const components = {
 };
 const uriString = TPS.toURI(components);
 console.log(uriString);
-// Output: "tps://31.95,35.91@T:greg.y26.M01.d07"
+// Output: "tps://31.95,35.91@T:greg.y26.m01.d07"
 ```
 
 ## 📖 Core Concepts
@@ -51,8 +51,23 @@ console.log(uriString);
 TPS represents time as a coordinate using this hierarchy:
 
 ```
-T:greg.m3.c1.y26.M01.d07.h13.n20.s45
+T:greg.m3.c1.y26.m01.d07.h13.m20.s45
 ```
+
+By default the tokens are listed **descending** (largest unit first).
+For compatibility with systems that prefer least-significant-first, the
+library now supports an `order` flag (use the `TimeOrder` enum with values
+`TimeOrder.ascending` or `TimeOrder.descending`) on
+`TPSComponents` or as an option to `TPS.fromDate()`.  When parsing a string
+with components in reverse order the parser will detect the orientation and
+set `components.order`.  An example ascending string:
+
+```plain
+T:greg.s45.m20.h13.d07.m01.y26.c1.m3
+```
+
+`TPS.validate()` and `TPS.parse()` accept both orientations and memory of the
+original order is retained during round‑trip conversions.
 
 | Component | Meaning                   |
 | --------- | ------------------------- |
@@ -95,12 +110,20 @@ Extensions are encoded as compact pairs with no `=` (e.g. `;f4.r7` means `{ f: "
 
 ### Supported Calendars
 
-- `greg` — Gregorian calendar (default)
-- `unix` — Unix epoch seconds
-- `hij` — Hijri (Islamic) — _requires driver_
-- `jul` — Julian — _requires driver_
-- `holo` — Holocene — _requires driver_
+The library uses a **driver** model for each calendar.  Gregorian and Unix
+drivers are included by default and registered automatically when the
+module loads.  The active or *current* driver is initially set to Gregorian
+and is used whenever the special calendar code `tps` is supplied or no
+calendar is specified to conversion methods (e.g. `TPS.fromDate()` alone).
 
+- `greg` — Gregorian calendar (default driver)
+- `unix` — Unix epoch seconds (built-in driver)
+- `hij` — Hijri (Islamic) — _requires a third‑party or custom driver_
+- `jul` — Julian — _requires a driver_
+- `holo` — Holocene — _requires a driver_
+
+You can register additional drivers using `TPS.registerDriver(driver)` and
+change the default with `TPS.setCurrentDriver(code)`.
 ## 🔌 Plugin Architecture
 
 TPS supports custom calendar drivers for non-Gregorian systems. Drivers can wrap external date libraries (like `moment-hijri`, `@js-joda/extra`, etc.).
@@ -117,11 +140,11 @@ export interface CalendarDriver {
   toGregorian(components: Partial<TPSComponents>): Date;
   fromDate(date: Date): string;
 
-  // Optional enhanced methods
-  parseDate?(input: string, format?: string): Partial<TPSComponents>;
-  format?(components: Partial<TPSComponents>, format?: string): string;
-  validate?(input: string | Partial<TPSComponents>): boolean;
-  getMetadata?(): CalendarMetadata;
+  // Enhanced helpers (now required in v0.5.0+)
+  parseDate(input: string, format?: string): Partial<TPSComponents>;
+  format(components: Partial<TPSComponents>, format?: string): string;
+  validate(input: string | Partial<TPSComponents>): boolean;
+  getMetadata(): CalendarMetadata;
 }
 ```
 
@@ -183,10 +206,10 @@ const uri = TPS.fromCalendarDate("hij", "1447-07-21", {
   latitude: 31.95,
   longitude: 35.91,
 });
-// "tps://31.95,35.91@T:hij.y1447.M07.d21"
+// "tps://31.95,35.91@T:hij.y1447.m07.d21"
 
 // Format TPS components back to calendar-native string
-const parsed = TPS.parse("tps://unknown@T:hij.y1447.M07.d21");
+const parsed = TPS.parse("tps://unknown@T:hij.y1447.m07.d21");
 const formatted = TPS.formatCalendarDate("hij", parsed);
 // "1447-07-21"
 
@@ -266,7 +289,7 @@ Parses a TPS string into components. Returns `null` if invalid.
 
 ```ts
 const parsed = TPS.parse(
-  "tps://31.95,35.91,800m@T:greg.m3.c1.y26.M01.d07.h13.n20;f4.r7"
+  "tps://31.95,35.91,800m@T:greg.m3.c1.y26.m01.d07.h13.m20;f4.r7"
 );
 // {
 //   latitude: 31.95,
@@ -300,7 +323,7 @@ const components = {
   extensions: { f: "4", r: "7" },
 };
 const uri = TPS.toURI(components);
-// "tps://31.95,35.91,800m@T:greg.y26.M01.d07;f4.r7"
+// "tps://31.95,35.91,800m@T:greg.y26.m01.d07;f4.r7"
 ```
 
 ### `TPS.fromDate(date: Date, calendar: CalendarCode): string`
@@ -309,7 +332,7 @@ Generates a TPS time string from a JavaScript Date. Supports registered drivers.
 
 ```ts
 const timeString = TPS.fromDate(new Date(), "greg");
-// "T:greg.m3.c1.y26.M01.d07.h13.n20.s45"
+// "T:greg.m3.c1.y26.m01.d07.h13.m20.s45"
 
 const unixTime = TPS.fromDate(new Date(), "unix");
 // "T:unix.s1704729645.123"
@@ -320,7 +343,7 @@ const unixTime = TPS.fromDate(new Date(), "unix");
 Converts a TPS string back to a JavaScript Date object.
 
 ```ts
-const date = TPS.toDate("T:greg.m3.c1.y26.M01.d07.h13.n20.s45");
+const date = TPS.toDate("T:greg.m3.c1.y26.m01.d07.h13.m20.s45");
 console.log(date); // Date object for 2026-01-07 13:20:45 UTC
 ```
 
@@ -329,7 +352,7 @@ console.log(date); // Date object for 2026-01-07 13:20:45 UTC
 Converts a TPS string from one calendar to another using registered drivers.
 
 ```ts
-const gregTime = "T:greg.m3.c1.y26.M01.d07";
+const gregTime = "T:greg.m3.c1.y26.m01.d07";
 const hijriTime = TPS.to("hij", gregTime);
 // Requires registered Hijri driver
 ```
@@ -360,16 +383,19 @@ if (driver) {
 
 ```ts
 interface TPSComponents {
-  // Temporal
+  // Temporal (all fields mandatory for canonical time representations)
   calendar: CalendarCode;
-  millennium?: number;
-  century?: number;
-  year?: number;
-  month?: number;
-  day?: number;
-  hour?: number;
-  minute?: number;
-  second?: number;
+  millennium: number;
+  century: number;
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  millisecond: number;
+  // Optional unix epoch value; some drivers (e.g. UnixDriver) prefer this
+  // over the individual fields and will fall back to it when present.
   unixSeconds?: number;
 
   // Spatial
@@ -425,7 +451,7 @@ TPS     bytes     UTF-8 TPS string
 import { TPSUID7RB } from "@nextera.one/tps-standard";
 
 // Create TPS-UID from a TPS string
-const tps = "tps://31.95,35.91@T:greg.m3.c1.y26.M01.d09.h14.n30.s25";
+const tps = "tps://31.95,35.91@T:greg.m3.c1.y26.m01.d09.h14.m30.s25";
 const id = TPSUID7RB.encodeBinaryB64(tps);
 // → "tpsuid7rb_VFBVNwEAAZujKmvo..."
 

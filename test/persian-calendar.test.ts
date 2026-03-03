@@ -27,9 +27,9 @@
  */
 
 import {
-  CalendarCode,
   CalendarDriver,
   CalendarMetadata,
+  DefaultCalendars,
   TPS,
   TPSComponents,
 } from '../src/index';
@@ -55,7 +55,7 @@ console.log('╚═════════════════════�
  * - date-fns-jalali
  */
 class PersianDriver implements CalendarDriver {
-  readonly code: CalendarCode = 'per' as CalendarCode;
+  readonly code = 'per';
   readonly name = 'Persian (Jalali/Solar Hijri)';
 
   // Persian month names
@@ -133,7 +133,7 @@ class PersianDriver implements CalendarDriver {
    * Convert Gregorian to Persian (Jalali)
    * Algorithm based on jalaali-js
    */
-  fromGregorian(date: Date): Partial<TPSComponents> {
+  getComponentsFromDate(date: Date): Partial<TPSComponents> {
     const gy = date.getUTCFullYear();
     const gm = date.getUTCMonth() + 1;
     const gd = date.getUTCDate();
@@ -158,7 +158,7 @@ class PersianDriver implements CalendarDriver {
   /**
    * Convert Persian (Jalali) to Gregorian
    */
-  toGregorian(components: Partial<TPSComponents>): Date {
+  getDateFromComponents(components: Partial<TPSComponents>): Date {
     const jy = components.year || 1;
     const jm = components.month || 1;
     const jd = components.day || 1;
@@ -167,7 +167,7 @@ class PersianDriver implements CalendarDriver {
     const jdn = this.persianToJdn(jy, jm, jd);
 
     // Julian Day Number to Gregorian
-    const { gy, gm, gd } = this.jdnToGregorian(jdn);
+    const { gy, gm, gd } = this.jdngetDateFromComponents(jdn);
 
     return new Date(
       Date.UTC(
@@ -184,8 +184,8 @@ class PersianDriver implements CalendarDriver {
   /**
    * Generate TPS time string for Persian calendar
    */
-  fromDate(date: Date): string {
-    const comp = this.fromGregorian(date);
+  getFromDate(date: Date): string {
+    const comp = this.getComponentsFromDate(date);
     const pad = (n?: number) => String(n || 0).padStart(2, '0');
     return (
       `T:per.y${comp.year}.M${pad(comp.month)}.d${pad(comp.day)}` +
@@ -338,7 +338,7 @@ class PersianDriver implements CalendarDriver {
     );
   }
 
-  private jdnToGregorian(jdn: number): { gy: number; gm: number; gd: number } {
+  private jdngetDateFromComponents(jdn: number): { gy: number; gm: number; gd: number } {
     const z = jdn;
     const a = z;
     const alpha = Math.floor((4 * a + 274277) / 146097);
@@ -413,15 +413,15 @@ console.log('═══ Test 1: Date Conversion ═══\n');
 const testDate = new Date('2026-01-09T08:30:00Z');
 console.log('Gregorian Date:', testDate.toISOString());
 
-const persianTime = TPS.fromDate(testDate, 'per' as CalendarCode);
+const persianTime = TPS.fromDate(testDate, 'per');
 console.log('TPS Persian Time:', persianTime);
 
-const persianComponents = persianDriver.fromGregorian(testDate);
+const persianComponents = persianDriver.getComponentsFromDate(testDate);
 console.log('Persian Components:', persianComponents);
 // Should be around 1404-10-19 (Dey 19th, 1404)
 
 // Convert back
-const gregorianBack = persianDriver.toGregorian(persianComponents);
+const gregorianBack = persianDriver.getDateFromComponents(persianComponents);
 console.log('Converted Back:', gregorianBack.toISOString());
 console.log('Match:', testDate.toISOString() === gregorianBack.toISOString() ? '✅' : '❌');
 
@@ -548,14 +548,14 @@ console.log();
 console.log('═══ Test 7: Cross-Calendar Conversion ═══\n');
 
 // Persian → Gregorian → Hijri (if Hijri driver is registered)
-const persianTimeStr = 'T:per.y1404.M10.d19.h12.n00.s00';
+const persianTimeStr = 'T:per.y1404.m10.d19.h12.m00.s00';
 console.log('Persian Time:', persianTimeStr);
 
 const persianDate = TPS.toDate(persianTimeStr);
 console.log('As Gregorian:', persianDate?.toISOString());
 
 // Convert to Gregorian TPS
-const gregTps = TPS.to('greg', persianTimeStr);
+const gregTps = TPS.to(DefaultCalendars.GREG, persianTimeStr);
 console.log('Gregorian TPS:', gregTps);
 
 console.log();
@@ -570,12 +570,12 @@ console.log('═══ Test 8: Nowruz (Persian New Year) ═══\n');
 const nowruz1404 = persianDriver.parseDate('1404-01-01');
 console.log('Nowruz 1404:', nowruz1404);
 
-const nowruzGregorian = persianDriver.toGregorian(nowruz1404);
+const nowruzGregorian = persianDriver.getDateFromComponents(nowruz1404);
 console.log('Nowruz 1404 in Gregorian:', nowruzGregorian.toISOString().split('T')[0]);
 // Should be around March 20-21, 2025
 
 const nowruz1405 = persianDriver.parseDate('1405-01-01');
-const nowruz1405Greg = persianDriver.toGregorian(nowruz1405);
+const nowruz1405Greg = persianDriver.getDateFromComponents(nowruz1405);
 console.log('Nowruz 1405 in Gregorian:', nowruz1405Greg.toISOString().split('T')[0]);
 // Should be around March 20-21, 2026
 
@@ -591,7 +591,7 @@ console.log('═══ Test 9: Historic Date Conversion ═══\n');
 const revolutionDay = persianDriver.parseDate('1357-11-22');
 console.log('Revolution Day (Persian):', persianDriver.format(revolutionDay, 'long'));
 
-const revolutionGreg = persianDriver.toGregorian(revolutionDay);
+const revolutionGreg = persianDriver.getDateFromComponents(revolutionDay);
 console.log('Revolution Day (Gregorian):', revolutionGreg.toISOString().split('T')[0]);
 // Should be 1979-02-11
 
