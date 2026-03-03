@@ -29,7 +29,7 @@ import { TPS } from "@nextera.one/tps-standard";
 // Gregorian Calendar (default)
 const gregTime = TPS.fromDate(new Date(), "greg");
 console.log(gregTime);
-// "T:greg.m3.c1.y26.M01.d07.h13.n20.s45"
+// "T:greg.m3.c1.y26.m01.d07.h13.m20.s45"
 
 // Unix Epoch
 const unixTime = TPS.fromDate(new Date(), "unix");
@@ -125,9 +125,6 @@ class HijriDriver implements CalendarDriver {
 - [ ] Implement `fromGregorian()` method
 - [ ] Implement `toGregorian()` method
 - [ ] Implement `fromDate()` method
-
-**Optional Enhanced Methods:**
-
 - [ ] Implement `parseDate()` - Parse calendar-native date strings
 - [ ] Implement `format()` - Format components to calendar-native strings
 - [ ] Implement `validate()` - Validate dates for this calendar
@@ -143,22 +140,22 @@ class HijriDriver implements CalendarDriver {
 
 ## Enhanced Driver Methods
 
-The `CalendarDriver` interface includes optional enhanced methods for better usability:
+The `CalendarDriver` interface includes enhanced helper methods that are required as of v0.5.0:
 
 ```typescript
 export interface CalendarDriver {
-  // Required
+  // Required core API
   readonly code: CalendarCode;
   fromGregorian(date: Date): Partial<TPSComponents>;
   toGregorian(components: Partial<TPSComponents>): Date;
   fromDate(date: Date): string;
 
-  // Optional Enhanced Methods
+  // Additional helpers (now mandatory)
   readonly name?: string;
-  parseDate?(input: string, format?: string): Partial<TPSComponents>;
-  format?(components: Partial<TPSComponents>, format?: string): string;
-  validate?(input: string | Partial<TPSComponents>): boolean;
-  getMetadata?(): CalendarMetadata;
+  parseDate(input: string, format?: string): Partial<TPSComponents>;
+  format(components: Partial<TPSComponents>, format?: string): string;
+  validate(input: string | Partial<TPSComponents>): boolean;
+  getMetadata(): CalendarMetadata;
 }
 
 export interface CalendarMetadata {
@@ -255,17 +252,17 @@ const uri = TPS.fromCalendarDate("hij", "1447-07-21", {
   longitude: 35.91,
 });
 console.log(uri);
-// "tps://31.95,35.91@T:hij.y1447.M07.d21"
+// "tps://31.95,35.91@T:hij.y1447.m07.d21"
 
 // With privacy flag
 const hiddenUri = TPS.fromCalendarDate("hij", "1447-07-21", {
   isHiddenLocation: true,
 });
 console.log(hiddenUri);
-// "tps://hidden@T:hij.y1447.M07.d21"
+// "tps://hidden@T:hij.y1447.m07.d21"
 
 // Format TPS components back to calendar-native string
-const parsed = TPS.parse("tps://unknown@T:hij.y1447.M07.d21");
+const parsed = TPS.parse("tps://unknown@T:hij.y1447.m07.d21");
 const formatted = TPS.formatCalendarDate("hij", parsed!);
 console.log(formatted);
 // "1447-07-21"
@@ -455,7 +452,7 @@ TPS.registerDriver(hijriDriver);
 // Now it's available for all operations
 const hijriTime = TPS.fromDate(new Date(), "hij");
 console.log(hijriTime);
-// "T:hij.y1447.M01.d07.h13.n20.s45"
+// "T:hij.y1447.m01.d07.h13.m20.s45"
 
 // Use convenience methods if parseDate is implemented
 const components = TPS.parseCalendarDate("hij", "1447-07-21");
@@ -493,17 +490,17 @@ Once multiple drivers are registered, you can convert between calendars:
 TPS.registerDriver(new HijriDriver());
 
 // Start with a Gregorian time
-const gregTime = "T:greg.m3.c1.y26.M01.d07.h13.n20.s45";
+const gregTime = "T:greg.m3.c1.y26.m01.d07.h13.m20.s45";
 
 // Convert to Hijri
 const hijriTime = TPS.to("hij", gregTime);
 console.log(hijriTime);
-// "T:hij.y1447.M01.d07.h13.n20.s45"
+// "T:hij.y1447.m01.d07.h13.m20.s45"
 
 // Convert back to Gregorian
 const backToGreg = TPS.to("greg", hijriTime);
 console.log(backToGreg);
-// "T:greg.m3.c1.y26.M01.d07.h13.n20.s45"
+// "T:greg.m3.c1.y26.m01.d07.h13.m20.s45"
 
 // The conversion always goes through a Gregorian Date internally:
 // Source Calendar → Gregorian Date → Target Calendar
@@ -557,7 +554,7 @@ function createEventFromHijriDate(
 
 const eventUri = createEventFromHijriDate("1447-07-21", 31.95, 35.91);
 console.log(eventUri);
-// "tps://31.95,35.91@T:hij.y1447.M07.d21"
+// "tps://31.95,35.91@T:hij.y1447.m07.d21"
 ```
 
 ### Example 3: Privacy-Aware Location Tracking
@@ -588,13 +585,13 @@ function trackWithPrivacy(
 
 // Usage
 console.log(trackWithPrivacy("1447-07-21", "hij", 31.95, 35.91, "open"));
-// "tps://31.95,35.91@T:hij.y1447.M07.d21"
+// "tps://31.95,35.91@T:hij.y1447.m07.d21"
 
 console.log(trackWithPrivacy("1447-07-21", "hij", null, null, "hidden"));
-// "tps://hidden@T:hij.y1447.M07.d21"
+// "tps://hidden@T:hij.y1447.m07.d21"
 
 console.log(trackWithPrivacy("1447-07-21", "hij", null, null, "redacted"));
-// "tps://redacted@T:hij.y1447.M07.d21"
+// "tps://redacted@T:hij.y1447.m07.d21"
 ```
 
 ### Example 4: Calendar Metadata for UI

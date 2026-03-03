@@ -31,7 +31,7 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "test": "node dist/index.js"
+    "tests": "for f in test/*.ts; do npx ts-node \"$f\"; done"
   },
   "files": [
     "dist",
@@ -39,6 +39,7 @@
   ],
   "devDependencies": {
     "typescript": "^5.3.3",
-    "@types/node": "^20.10.6"
+    "@types/node": "^20.10.6",
+    "ts-node": "^10.9.2"
   }
 }

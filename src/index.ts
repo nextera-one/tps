@@ -13,19 +13,54 @@
  * - Added geospatial cell systems (S2, H3, Plus Code, what3words)
  */
 
-export type CalendarCode = 'greg' | 'hij' | 'jul' | 'holo' | 'unix';
+// built-in drivers are registered automatically; importing them here
+// ensures they are included when the library bundler/tree-shaker runs.
+import { GregorianDriver } from "./drivers/gregorian";
+import { UnixDriver } from "./drivers/unix";
+import { TpsDriver } from "./drivers/tps";
+
+// Calendar codes are plain strings to allow arbitrary user-defined
+// calendars.  The library still exports constants for the built-in values but
+// callers may also supply their own codes.
+export const DefaultCalendars = {
+  TPS: 'tps',
+  GREG: 'greg',
+  HIJ: 'hij',
+  JUL: 'jul',
+  HOLO: 'holo',
+  UNIX: 'unix',
+} as const;
+
+/**
+ * Specifies the direction of the time-component hierarchy when serializing or
+ * deserializing a TPS string.  The default is `'descending'` (millennium → … →
+ * second), but `'ascending'` produces the reverse order.
+ */
+export enum TimeOrder {
+  DESC = 'desc',
+  ASC = 'asc',
+}
 
 export interface TPSComponents {
   // --- TEMPORAL ---
-  calendar: CalendarCode;
-  millennium?: number;
-  century?: number;
-  year?: number;
-  month?: number;
-  day?: number;
-  hour?: number;
-  minute?: number;
-  second?: number;
+  calendar: string;
+  // --- REQUIRED TEMPORAL FIELDS ---
+  // All of the traditional Gregorian components are now mandatory.  This
+  // reflects the fact that a valid TPS time object must contain a complete
+  // timestamp when using the canonical calendar formats.
+  millennium: number;
+  century: number;
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  /** Sub-second precision (0–999).  Encoded as the last `m` token. */
+  millisecond: number;
+  // --- OPTIONAL UNIX BACKUP ---
+  // `unixSeconds` remains optional to support the Unix driver and other
+  // cases where a simple epoch value is preferred.
   unixSeconds?: number;
 
   // --- SPATIAL: GPS Coordinates ---
@@ -69,7 +104,9 @@ export interface TPSComponents {
 
   // --- CONTEXT ---
   extensions?: Record<string, string>;
-}
+
+  order?: TimeOrder;
+} 
 
 // --- PLUGIN ARCHITECTURE ---
 
@@ -124,7 +161,7 @@ export interface TPSComponents {
  */
 export interface CalendarDriver {
   /** The calendar code this driver handles (e.g., 'hij', 'jul'). */
-  readonly code: CalendarCode;
+  readonly code: string;
 
   /**
    * Human-readable name for this calendar (optional).
@@ -133,25 +170,25 @@ export interface CalendarDriver {
   readonly name?: string;
 
   /**
-   * Converts a Gregorian Date to this calendar's components.
+   * Converts a Date to this calendar's components.
    * @param date - The Gregorian Date object.
    * @returns Partial TPS components for year, month, day, etc.
    */
-  fromGregorian(date: Date): Partial<TPSComponents>;
+  getComponentsFromDate(date: Date): Partial<TPSComponents>;
 
   /**
-   * Converts this calendar's components to a Gregorian Date.
+   * Converts this calendar's components to a Date.
    * @param components - Partial TPS components (year, month, day, etc.).
    * @returns A JavaScript Date object.
    */
-  toGregorian(components: Partial<TPSComponents>): Date;
+  getDateFromComponents(components: Partial<TPSComponents>): Date;
 
   /**
    * Generates a TPS time string for this calendar from a Date.
    * @param date - The Gregorian Date object.
-   * @returns A TPS time string (e.g., "T:hij.y1447.M07.d21...").
+   * @returns A TPS time string (e.g., "T:hij.y1447.m07.d21...").
    */
-  fromDate(date: Date): string;
+  getFromDate(date: Date): string;
 
   // --- NEW ENHANCED METHODS (Optional) ---
 
@@ -172,7 +209,7 @@ export interface CalendarDriver {
    * driver.parseDate('1447-07-21 14:30:00'); // → { year: 1447, month: 7, day: 21, hour: 14, ... }
    * ```
    */
-  parseDate?(input: string, format?: string): Partial<TPSComponents>;
+  parseDate(input: string, format?: string): Partial<TPSComponents>;
 
   /**
    * Format TPS components to a calendar-specific date string.
@@ -188,7 +225,7 @@ export interface CalendarDriver {
    * driver.format({ year: 1447, month: 7, day: 21 }, 'short'); // → '21/7/1447'
    * ```
    */
-  format?(components: Partial<TPSComponents>, format?: string): string;
+  format(components: Partial<TPSComponents>, format?: string): string;
 
   /**
    * Validate a calendar-specific date string or components.
@@ -202,7 +239,7 @@ export interface CalendarDriver {
    * driver.validate({ year: 1447, month: 7, day: 31 }); // → false (Rajab has 30 days)
    * ```
    */
-  validate?(input: string | Partial<TPSComponents>): boolean;
+  validate(input: string | Partial<TPSComponents>): boolean;
 
   /**
    * Get calendar metadata (month names, day names, etc.).
@@ -214,7 +251,7 @@ export interface CalendarDriver {
    * // → ['Muharram', 'Safar', 'Rabi I', ...]
    * ```
    */
-  getMetadata?(): CalendarMetadata;
+  getMetadata(): CalendarMetadata;
 }
 
 /**
@@ -241,8 +278,7 @@ export interface CalendarMetadata {
 
 export class TPS {
   // --- PLUGIN REGISTRY ---
-  private static readonly drivers: Map<CalendarCode, CalendarDriver> =
-    new Map();
+  private static readonly drivers: Map<string, CalendarDriver> = new Map();
 
   /**
    * Registers a calendar driver plugin.
@@ -257,63 +293,237 @@ export class TPS {
    * @param code - The calendar code.
    * @returns The driver or undefined.
    */
-  static getDriver(code: CalendarCode): CalendarDriver | undefined {
+  static getDriver(code: string): CalendarDriver | undefined {
     return this.drivers.get(code);
   }
 
   // --- REGEX ---
   // Updated for v0.5.0: supports L: anchors, A: actor, ! signature, structural & geospatial anchors
-  // Note: Complex regex - carefully balanced parentheses
+  // Tokens may appear in any order; actual semantic parsing happens in
+  // `parseTimeString()` so these patterns are intentionally permissive.
+  // regex simply ensures prefix, space, calendar, and token characters;
+  // token order is not enforced (parseTimeString handles semantics).
   private static readonly REGEX_URI = new RegExp(
-    '^tps://' +
-      // Location part (L: prefix optional for backward compat)
-      '(?:L:)?(?<space>' +
-      '~|-|unknown|redacted|hidden|' + // Privacy markers
-      's2=(?<s2>[a-fA-F0-9]+)|' + // S2 cell
-      'h3=(?<h3>[a-fA-F0-9]+)|' + // H3 cell
-      'plus=(?<plus>[A-Z0-9+]+)|' + // Plus Code
-      'w3w=(?<w3w>[a-z]+\\.[a-z]+\\.[a-z]+)|' + // what3words
-      'bldg=(?<bldg>[\\w-]+)(?:\\.floor=(?<floor>[\\w-]+))?(?:\\.room=(?<room>[\\w-]+))?(?:\\.zone=(?<zone>[\\w-]+))?|' + // Structural
-      '(?<lat>-?\\d+(?:\\.\\d+)?),(?<lon>-?\\d+(?:\\.\\d+)?)(?:,(?<alt>-?\\d+(?:\\.\\d+)?)m?)?' + // GPS
-      ')' +
-      // Optional Actor anchor
-      '(?:/A:(?<actor>[^/@]+))?' +
-      // Time part separator
-      '[/@]T:(?<calendar>[a-z]{3,4})\\.' +
-      // Time components
-      '(?:(?<unix>s\\d+(?:\\.\\d+)?)|m(?<millennium>-?\\d+)(?:\\.c(?<century>\\d+)(?:\\.y(?<year>\\d+)(?:\\.M(?<month>\\d{1,2})(?:\\.d(?<day>\\d{1,2})(?:\\.h(?<hour>\\d{1,2})(?:\\.n(?<minute>\\d{1,2})(?:\\.s(?<second>\\d{1,2}(?:\\.\\d+)?))?)?)?)?)?)?)?)' +
-      // Optional signature
-      '(?:!(?<signature>[^;?#]+))?' +
-      // Optional extensions
-      '(?:;(?<extensions>[a-z0-9.\\-_=]+))?' +
-      // Optional query params
-      '(?:\\?(?<params>[^#]+))?' +
-      // Optional context
-      '(?:#(?<context>.+))?$',
+    "^tps://" +
+      // Location part (preserve named captures for space subfields)
+      "(?:L:)?(?<space>" +
+      "~|-|unknown|redacted|hidden|" +
+      "s2=(?<s2>[a-fA-F0-9]+)|" +
+      "h3=(?<h3>[a-fA-F0-9]+)|" +
+      "plus=(?<plus>[A-Z0-9+]+)|" +
+      "w3w=(?<w3w>[a-z]+\\.[a-z]+\\.[a-z]+)|" +
+      "bldg=(?<bldg>[\\w-]+)(?:\\.floor=(?<floor>[\\w-]+))?(?:\\.room=(?<room>[\\w-]+))?(?:\\.zone=(?<zone>[\\w-]+))?|" +
+      "(?<lat>-?\\d+(?:\\.\\d+)?),(?<lon>-?\\d+(?:\\.\\d+)?)(?:,(?<alt>-?\\d+(?:\\.\\d+)?)m?)?" +
+      ")" +
+      "(?:/A:(?<actor>[^/@]+))?" +
+      "@T:(?<calendar>[a-z]{3,4})" +
+      "(?:\\.(?:m-?\\d+|c\\d+|y\\d+|d\\d{1,2}|h\\d{1,2}|s\\d+(?:\\.\\d+)?))*" +
+      "(?:![^;?#]+)?" +
+      "(?:;(?<extensions>[a-z0-9.\-_=]+))?" +
+      "(?:\\?[^#]+)?" +
+      "(?:#.+)?$",
   );
 
   private static readonly REGEX_TIME = new RegExp(
-    '^T:(?<calendar>[a-z]{3,4})\\.' +
-      '(?:(?<unix>s\\d+(?:\\.\\d+)?)|m(?<millennium>-?\\d+)(?:\\.c(?<century>\\d+)(?:\\.y(?<year>\\d+)(?:\\.M(?<month>\\d{1,2})(?:\\.d(?<day>\\d{1,2})(?:\\.h(?<hour>\\d{1,2})(?:\\.n(?<minute>\\d{1,2})(?:\\.s(?<second>\\d{1,2}(?:\\.\\d+)?))?)?)?)?)?)?)?)' +
-      '(?:!(?<signature>[^;?#]+))?$',
+    "^T:(?<calendar>[a-z]{3,4})" +
+      "(?:\\.(?:m-?\\d+|c\\d+|y\\d+|d\\d{1,2}|h\\d{1,2}|s\\d+(?:\\.\\d+)?))*" +
+      "(?:![^;?#]+)?$",
   );
 
   // --- CORE METHODS ---
 
+  /**
+   * SANITIZER: Normalises a raw TPS input string before validation.
+   *
+   * Pure string-based — no parsing into components, no regex beyond simple
+   * character checks, no re-serialisation via buildTimePart / toURI.
+   *
+   * Token ranks (descending): m(8) c(7) y(6) m(5) d(4) h(3) m(2) s(1) m(0)
+   */
+  static sanitizeTimeInput(input: string): string {
+    // ── 1. Whitespace ────────────────────────────────────────────────────────
+    let s = input.trim().replace(/\s+/g, "");
+    if (!s) return s;
+
+    // ── 1.5 Convert legacy "/T:" separators to the new canonical "@T:".
+    // The input may contain "/T:" from older versions; we normalise early so
+    // subsequent logic can assume only the '@' form.
+    if (s.includes("/T:")) {
+      s = s.replace(/\/T:/g, "@T:");
+    }
+
+    // ── 2. Scheme casing ─────────────────────────────────────────────────────
+    if (s.slice(0, 6).toLowerCase() === "tps://") {
+      s = "tps://" + s.slice(6);
+    }
+
+    // ── 3. T: prefix casing (time-only strings) ──────────────────────────────
+    if (!s.startsWith("tps://") && s.slice(0, 2).toLowerCase() === "t:") {
+      s = "T:" + s.slice(2);
+    }
+
+    // ── 4. Locate T: section ─────────────────────────────────────────────────
+    let tStart = -1;
+    if (s.startsWith("T:")) {
+      tStart = 0;
+    } else {
+      const atT = s.indexOf("@T:");
+      if (atT !== -1) tStart = atT + 1;
+    }
+    if (tStart === -1) return s; // no T: section — return as-is
+
+    const beforeT = s.slice(0, tStart); // URI prefix or empty
+    const timeAndRest = s.slice(tStart); // T:cal.tok...  [!sig][;ext]
+
+    // Isolate token section from any trailing suffix (!sig / ;ext / ?q / #f)
+    const suffixIdx = timeAndRest.search(/[!;?#]/);
+    const timeSuffix = suffixIdx !== -1 ? timeAndRest.slice(suffixIdx) : "";
+    const timePart =
+      suffixIdx !== -1 ? timeAndRest.slice(0, suffixIdx) : timeAndRest;
+    // timePart = "T:greg.m3.c1.y26.m01.d07.h13.m20.s45"
+
+    // Split off calendar code
+    const afterColon = timePart.slice(timePart.indexOf(":") + 1); // "greg.m3.c1..."
+    const firstDot = afterColon.indexOf(".");
+    const cal = (
+      firstDot !== -1 ? afterColon.slice(0, firstDot) : afterColon
+    ).toLowerCase();
+    const tokenStr = firstDot !== -1 ? afterColon.slice(firstDot + 1) : "";
+
+    // If no calendar code was provided at all (e.g. "T:"), bail out early
+    // rather than inventing a default calendar.  The string will remain
+    // unparsable so validation can report it as invalid.
+    if (!cal) {
+      return s;
+    }
+
+    // No tokens at all — fill every slot with 0 and return
+    // Use tps as the default calendar if none was specified
+    const resolvedCal = cal || DefaultCalendars.TPS;
+    if (!tokenStr) {
+      return `${beforeT}T:${resolvedCal}.m0.c0.y0.m0.d0.h0.m0.s0.m0${timeSuffix}`;
+    }
+
+    // ── 5. Tokenise ──────────────────────────────────────────────────────────
+    // Each raw token: first char = letter prefix, remainder = numeric value
+    type Tok = { p: string; v: string };
+    const tokens: Tok[] = tokenStr
+      .split(".")
+      .filter((t) => t.length >= 2 && /^[a-z]/.test(t))
+      .map((t) => ({ p: t[0], v: t.slice(1) }));
+
+    // ── 6. Detect order from non-m tokens (c=7, y=6, d=4, h=3, s=1) ─────────
+    const nonMRank: Record<string, number> = { c: 7, y: 6, d: 4, h: 3, s: 1 };
+    const nonMSeq = tokens
+      .filter((t) => t.p !== "m" && nonMRank[t.p] !== undefined)
+      .map((t) => nonMRank[t.p]);
+
+    let isAsc = false;
+    if (nonMSeq.length >= 2) {
+      // ascending when every consecutive rank-diff is positive
+      isAsc = nonMSeq.every((r, i) => i === 0 || r > nonMSeq[i - 1]);
+    }
+
+    // ── 7. Reverse tokens if ascending ───────────────────────────────────────
+    if (isAsc) tokens.reverse();
+
+    // ── 8. Disambiguate 'm' tokens by DESC position ──────────────────────────
+    // DESC slot order for m tokens: rank 8 (millennium), 5 (month), 2 (minute), 0 (ms)
+    const mDescRanks = [8, 5, 2, 0];
+    const byRank = new Map<number, string>();
+    let mIdx = 0;
+
+    for (const tok of tokens) {
+      if (tok.p === "m") {
+        if (mIdx < mDescRanks.length) byRank.set(mDescRanks[mIdx++], tok.v);
+      } else {
+        const r = nonMRank[tok.p];
+        if (r !== undefined) byRank.set(r, tok.v);
+      }
+    }
+
+    // ── 9. Build complete DESC token string, filling gaps with '0' ───────────
+    // Full DESC slot sequence: m(8) c(7) y(6) m(5) d(4) h(3) m(2) s(1) m(0)
+    const descSlots: Array<[string, number]> = [
+      ["m", 8],
+      ["c", 7],
+      ["y", 6],
+      ["m", 5],
+      ["d", 4],
+      ["h", 3],
+      ["m", 2],
+      ["s", 1],
+      ["m", 0],
+    ];
+
+    const finalTokenStr = descSlots
+      .map(([p, r]) => p + (byRank.get(r) ?? "0"))
+      .join(".");
+
+    return `${beforeT}T:${resolvedCal}.${finalTokenStr}${timeSuffix}`;
+  }
+
   static validate(input: string): boolean {
-    if (input.startsWith('tps://')) return this.REGEX_URI.test(input);
-    return this.REGEX_TIME.test(input);
+    const sanitized = this.sanitizeTimeInput(input);
+    if (sanitized.startsWith("tps://")) {
+      return this.REGEX_URI.test(sanitized);
+    }
+    return this.REGEX_TIME.test(sanitized);
   }
 
   static parse(input: string): TPSComponents | null {
-    if (input.startsWith('tps://')) {
+    // Always sanitize first so we operate on the canonical form.  This also
+    // rewrites any legacy "/T:" separators to "@T:" so the regex below can
+    // remain strict.
+    input = this.sanitizeTimeInput(input);
+
+    // quick fail via regex to rule out obviously bad strings
+    if (input.startsWith("tps://")) {
       const match = this.REGEX_URI.exec(input);
       if (!match || !match.groups) return null;
-      return this._mapGroupsToComponents(match.groups);
+      const comp: any = this._mapGroupsToComponents(match.groups);
+      // extract the raw time portion and parse it separately
+      const atIdx = input.indexOf("@T:");
+      let timeStr = "";
+      let signature: string | undefined;
+      if (atIdx !== -1) {
+        timeStr = input.slice(atIdx + 1); // include the leading 'T:'
+        // if there's a signature, capture it first
+        const sigMatch = timeStr.match(/!(?<sig>[^;?#]+)/);
+        if (sigMatch && sigMatch.groups && sigMatch.groups.sig) {
+          signature = sigMatch.groups.sig;
+        }
+        // cut off signature, extensions, query, or fragment
+        timeStr = timeStr.split(/[!;?#]/)[0];
+      }
+      if (timeStr) {
+        const parsed = this.parseTimeString(timeStr);
+        if (!parsed) return null;
+        Object.assign(comp, parsed.components);
+        comp.order = parsed.order;
+      }
+      if (signature) {
+        comp.signature = signature;
+      }
+      return comp as TPSComponents;
     }
+    // time-only string
     const match = this.REGEX_TIME.exec(input);
     if (!match || !match.groups) return null;
-    return this._mapGroupsToComponents(match.groups);
+    // isolate signature if present
+    let timeOnly = input;
+    let signature: string | undefined;
+    const sigMatch = input.match(/!(?<sig>[^;?#]+)/);
+    if (sigMatch && sigMatch.groups && sigMatch.groups.sig) {
+      signature = sigMatch.groups.sig;
+      timeOnly = input.split(/[!;?#]/)[0];
+    }
+    const parsed = this.parseTimeString(timeOnly);
+    if (!parsed) return null;
+    const comp = parsed.components as TPSComponents;
+    if (signature) comp.signature = signature;
+    comp.order = parsed.order;
+    return comp;
   }
 
   /**
@@ -323,14 +533,14 @@ export class TPS {
    */
   static toURI(comp: TPSComponents): string {
     // 1. Build Space Part (L: anchor)
-    let spacePart = 'L:-'; // Default: unknown
+    let spacePart = "L:-"; // Default: unknown
 
     if (comp.isHiddenLocation) {
-      spacePart = 'L:~';
+      spacePart = "L:~";
     } else if (comp.isRedactedLocation) {
-      spacePart = 'L:redacted';
+      spacePart = "L:redacted";
     } else if (comp.isUnknownLocation) {
-      spacePart = 'L:-';
+      spacePart = "L:-";
     } else if (comp.s2Cell) {
       spacePart = `L:s2=${comp.s2Cell}`;
     } else if (comp.h3Cell) {
@@ -352,81 +562,82 @@ export class TPS {
     }
 
     // 2. Build Actor Part (A: anchor) - optional
-    let actorPart = '';
+    let actorPart = "";
     if (comp.actor) {
       actorPart = `/A:${comp.actor}`;
     }
 
-    // 3. Build Time Part
-    let timePart = `T:${comp.calendar}`;
-
-    if (comp.calendar === 'unix' && comp.unixSeconds !== undefined) {
-      timePart += `.s${comp.unixSeconds}`;
-    } else {
-      if (comp.millennium !== undefined) timePart += `.m${comp.millennium}`;
-      if (comp.century !== undefined) timePart += `.c${comp.century}`;
-      if (comp.year !== undefined) timePart += `.y${comp.year}`;
-      if (comp.month !== undefined) timePart += `.M${this.pad(comp.month)}`;
-      if (comp.day !== undefined) timePart += `.d${this.pad(comp.day)}`;
-      if (comp.hour !== undefined) timePart += `.h${this.pad(comp.hour)}`;
-      if (comp.minute !== undefined) timePart += `.n${this.pad(comp.minute)}`;
-      if (comp.second !== undefined) timePart += `.s${this.pad(comp.second)}`;
-    }
-
-    // 4. Add Signature (!) - optional
-    if (comp.signature) {
-      timePart += `!${comp.signature}`;
-    }
+    // 3. Build Time Part (handles order & signature)
+    const timePart = this.buildTimePart(comp);
 
     // 5. Build Extensions
-    let extPart = '';
+    let extPart = "";
     if (comp.extensions && Object.keys(comp.extensions).length > 0) {
       const extStrings = Object.entries(comp.extensions).map(
         ([k, v]) => `${k}=${v}`,
       );
-      extPart = `;${extStrings.join('.')}`;
+      extPart = `;${extStrings.join(".")}`;
     }
 
-    return `tps://${spacePart}${actorPart}/${timePart}${extPart}`;
+    // timePart already begins with 'T:'.  The new canonical separator is '@'
+    // instead of '/', so we interpolate it accordingly.  Actor anchor (if
+    // present) still uses a leading slash.
+    return `tps://${spacePart}${actorPart}@${timePart}${extPart}`;
   }
 
   /**
    * CONVERTER: Creates a TPS Time Object string from a JavaScript Date.
    * Supports plugin drivers for non-Gregorian calendars.
    * @param date - The JS Date object (defaults to Now).
-   * @param calendar - The target calendar driver (default 'greg').
-   * @returns Canonical string (e.g., "T:greg.m3.c1.y26...").
+   * @param calendar - The target calendar driver (default `"tps"`).
+   * @param opts - Optional parameters; for built-in calendars the only
+   *   supported key is `order` which may be `'ascending'` or `'descending'`.
+   * @returns Canonical string (e.g., "T:tps.m3.c1.y26...").
    */
   static fromDate(
     date: Date = new Date(),
-    calendar: CalendarCode = 'greg',
+    calendar: string = DefaultCalendars.TPS,
+    opts?: { order?: TimeOrder },
   ): string {
-    // Check for registered driver first
     const driver = this.drivers.get(calendar);
     if (driver) {
-      return driver.fromDate(date);
+      // when caller requested an explicit order we can bypass the driver's
+      // `fromDate` helper and instead generate components ourselves so that
+      // order is honoured even if the driver doesn't know about it.  This
+      // keeps behaviour identical to the old built-in implementation.
+      if (opts?.order) {
+        const comp = driver.getComponentsFromDate(date) as TPSComponents;
+        comp.calendar = calendar;
+        comp.order = opts.order;
+        return this.buildTimePart(comp);
+      }
+      return driver.getFromDate(date);
     }
 
-    // Built-in handlers
-    if (calendar === 'unix') {
+    // Fallback for old built-in calendars (shouldn't happen once drivers are
+    // registered, but kept for backwards compatibility).
+    const comp: TPSComponents = { calendar } as any;
+
+    if (calendar === DefaultCalendars.UNIX) {
       const s = (date.getTime() / 1000).toFixed(3);
-      return `T:unix.s${s}`;
+      comp.unixSeconds = parseFloat(s);
+      if (opts?.order) comp.order = opts.order;
+      return this.buildTimePart(comp);
     }
 
-    if (calendar === 'greg') {
+    if (calendar === DefaultCalendars.GREG) {
       const fullYear = date.getUTCFullYear();
-      const m = Math.floor(fullYear / 1000) + 1;
-      const c = Math.floor((fullYear % 1000) / 100) + 1;
-      const y = fullYear % 100;
-      const M = date.getUTCMonth() + 1;
-      const d = date.getUTCDate();
-      const h = date.getUTCHours();
-      const n = date.getUTCMinutes();
-      const s = date.getUTCSeconds();
-
-      return `T:greg.m${m}.c${c}.y${y}.M${this.pad(M)}.d${this.pad(
-        d,
-      )}.h${this.pad(h)}.n${this.pad(n)}.s${this.pad(s)}`;
+      comp.millennium = Math.floor(fullYear / 1000) + 1;
+      comp.century = Math.floor((fullYear % 1000) / 100) + 1;
+      comp.year = fullYear % 100;
+      comp.month = date.getUTCMonth() + 1;
+      comp.day = date.getUTCDate();
+      comp.hour = date.getUTCHours();
+      comp.minute = date.getUTCMinutes();
+      comp.second = date.getUTCSeconds();
+      comp.millisecond = date.getUTCMilliseconds();
+      if (opts?.order) comp.order = opts.order;
+      return this.buildTimePart(comp);
     }
 
     throw new Error(
@@ -441,7 +652,7 @@ export class TPS {
    * @param targetCalendar - The target calendar code (e.g., 'hij').
    * @returns A TPS string in the target calendar, or null if invalid.
    */
-  static to(targetCalendar: CalendarCode, tpsString: string): string | null {
+  static to(targetCalendar: string, tpsString: string): string | null {
     // 1. Parse to components and convert to Gregorian Date
     const gregDate = this.toDate(tpsString);
     if (!gregDate) return null;
@@ -457,45 +668,25 @@ export class TPS {
    * @returns JS Date object or `null` if invalid.
    */
   static toDate(tpsString: string): Date | null {
-    const p = this.parse(tpsString);
-    if (!p) return null;
+    const parsed = this.parse(tpsString);
+    if (!parsed) return null;
 
-    // Check for registered driver first
-    const driver = this.drivers.get(p.calendar);
-    if (driver) {
-      return driver.toGregorian(p);
+    const cal = parsed.calendar || DefaultCalendars.TPS;
+
+    const driver = this.drivers.get(cal);
+    if (!driver) {
+      console.error(`Calendar driver '${cal}' not registered.`);
+      return null;
     }
 
-    // Built-in handlers
-    if (p.calendar === 'unix' && p.unixSeconds !== undefined) {
-      return new Date(p.unixSeconds * 1000);
-    }
-
-    if (p.calendar === 'greg') {
-      const m = p.millennium || 0;
-      const c = p.century || 1;
-      const y = p.year || 0;
-      const fullYear = (m - 1) * 1000 + (c - 1) * 100 + y;
-
-      return new Date(
-        Date.UTC(
-          fullYear,
-          (p.month || 1) - 1,
-          p.day || 1,
-          p.hour || 0,
-          p.minute || 0,
-          Math.floor(p.second || 0),
-        ),
-      );
-    }
-    return null;
+    return driver.getDateFromComponents(parsed);
   }
 
   // --- DRIVER CONVENIENCE METHODS ---
 
   /**
    * Parse a calendar-specific date string into TPS components.
-   * Requires the driver to implement the optional `parseDate` method.
+   * Requires the driver to implement `parseDate`.
    *
    * @param calendar - The calendar code (e.g., 'hij')
    * @param dateString - Date string in calendar-native format (e.g., '1447-07-21')
@@ -508,11 +699,11 @@ export class TPS {
    * // { calendar: 'hij', year: 1447, month: 7, day: 21 }
    *
    * const uri = TPS.toURI({ ...components, latitude: 31.95, longitude: 35.91 });
-   * // "tps://31.95,35.91@T:hij.y1447.M07.d21"
+   * // "tps://31.95,35.91@T:hij.y1447.m07.d21"
    * ```
    */
   static parseCalendarDate(
-    calendar: CalendarCode,
+    calendar: string,
     dateString: string,
     format?: string,
   ): Partial<TPSComponents> | null {
@@ -522,11 +713,7 @@ export class TPS {
         `Calendar driver '${calendar}' not found. Register a driver first.`,
       );
     }
-    if (!driver.parseDate) {
-      throw new Error(
-        `Driver '${calendar}' does not implement parseDate(). Use fromGregorian() instead.`,
-      );
-    }
+    // parseDate is guaranteed by the interface, so we can call it directly.
     return driver.parseDate(dateString, format);
   }
 
@@ -543,19 +730,19 @@ export class TPS {
    * ```ts
    * // With coordinates
    * TPS.fromCalendarDate('hij', '1447-07-21', { latitude: 31.95, longitude: 35.91 });
-   * // "tps://31.95,35.91@T:hij.y1447.M07.d21"
+   * // "tps://31.95,35.91@T:hij.y1447.m07.d21"
    *
    * // With privacy flag
    * TPS.fromCalendarDate('hij', '1447-07-21', { isHiddenLocation: true });
-   * // "tps://hidden@T:hij.y1447.M07.d21"
+   * // "tps://hidden@T:hij.y1447.m07.d21"
    *
    * // Without location
    * TPS.fromCalendarDate('hij', '1447-07-21');
-   * // "tps://unknown@T:hij.y1447.M07.d21"
+   * // "tps://unknown@T:hij.y1447.m07.d21"
    * ```
    */
   static fromCalendarDate(
-    calendar: CalendarCode,
+    calendar: string,
     dateString: string,
     location?: {
       latitude?: number;
@@ -573,7 +760,7 @@ export class TPS {
 
     // Merge with location
     const fullComponents: TPSComponents = {
-      calendar,
+      calendar: calendar,
       ...components,
       ...location,
     } as TPSComponents;
@@ -583,7 +770,7 @@ export class TPS {
 
   /**
    * Format TPS components to a calendar-specific date string.
-   * Requires the driver to implement the optional `format` method.
+   * Requires the driver to implement `format`.
    *
    * @param calendar - The calendar code
    * @param components - TPS components to format
@@ -592,13 +779,13 @@ export class TPS {
    *
    * @example
    * ```ts
-   * const tps = TPS.parse('tps://unknown@T:hij.y1447.M07.d21');
+   * const tps = TPS.parse('tps://unknown@T:hij.y1447.m07.d21');
    * const formatted = TPS.formatCalendarDate('hij', tps);
    * // "1447-07-21"
    * ```
    */
   static formatCalendarDate(
-    calendar: CalendarCode,
+    calendar: string,
     components: Partial<TPSComponents>,
     format?: string,
   ): string {
@@ -606,33 +793,227 @@ export class TPS {
     if (!driver) {
       throw new Error(`Calendar driver '${calendar}' not found.`);
     }
-    if (!driver.format) {
-      throw new Error(`Driver '${calendar}' does not implement format().`);
-    }
+    // format is guaranteed by the interface, so we can call it directly.
     return driver.format(components, format);
   }
 
   // --- INTERNAL HELPERS ---
 
+  /**
+   * Generate the canonical `T:` time string for a set of components.  The
+   * `order` field (or `comp.order`) controls whether tokens are emitted in
+   * ascending or descending hierarchy; if undefined the default
+   * `'descending'` orientation is used.
+   *
+   * Drivers may ignore this helper and produce their own time strings if they
+   * implement custom ordering logic.
+   */
+  public static buildTimePart(comp: TPSComponents): string {
+    let time = `T:${comp.calendar}`;
+    if (comp.calendar === DefaultCalendars.UNIX) {
+      if (comp.unixSeconds !== undefined) {
+        time += `.s${comp.unixSeconds}`;
+      }
+      return time;
+    }
+
+    // sequence of [prefix, value, rank]
+    // All four of millennium / month / minute / millisecond share the prefix 'm'.
+    // Position within the ordered sequence disambiguates them during parsing.
+    const tokens: Array<[string, number | undefined, number]> = [
+      ["m", comp.millennium, 8], // m-token rank 8 → millennium
+      ["c", comp.century, 7],
+      ["y", comp.year, 6],
+      ["m", comp.month, 5], // m-token rank 5 → month
+      ["d", comp.day, 4],
+      ["h", comp.hour, 3],
+      ["m", comp.minute, 2], // m-token rank 2 → minute
+      ["s", comp.second, 1],
+      ["m", comp.millisecond, 0], // m-token rank 0 → millisecond
+    ];
+
+    const order: TimeOrder = comp.order || TimeOrder.DESC;
+    if (order === TimeOrder.ASC) tokens.reverse();
+
+    for (const [pref, val] of tokens) {
+      if (val !== undefined) {
+        // seconds may be fractional
+        time += `.${pref}${val}`;
+      }
+    }
+
+    if (comp.signature) {
+      time += `!${comp.signature}`;
+    }
+
+    return time;
+  }
+
+  /**
+   * Parse the *time* portion of a TPS string (optionally beginning with
+   * `T:`) into components and determine the component ordering.  This helper
+   * accepts tokens in **any** sequence and will return an `order` value of
+   * `'ascending'` or `'descending'`.
+   *
+   * The caller is responsible for stripping off a leading signature or other
+   * trailer characters; this method will drop anything after `!`, `;`, `?` or
+   * `#`.
+   *
+   * ### `m`-token disambiguation
+   * All four of millennium (rank 8), month (rank 5), minute (rank 2) and
+   * millisecond (rank 0) share the single-character prefix `m`.  They are told
+   * apart by their **position relative to the neighbouring tokens**.  The
+   * algorithm is:
+   *
+   * 1. Pre-scan the non-`m` tokens (c, y, d, h, s) whose ranks are fixed to
+   *    determine whether the string is ascending or descending.
+   * 2. While iterating, track `lastAssignedRank` – the rank of the most
+   *    recently processed token (m or non-m).
+   * 3. When an `m` token is encountered, derive its rank from `lastAssignedRank`
+   *    and the detected order:
+   *    - **DESC**  null → 8 (mill) | rank > 5 → 5 (month) | rank > 2 → 2 (min) | else → 0 (ms)
+   *    - **ASC**   null → 0 (ms)   | rank < 2 → 2 (min)   | rank < 5 → 5 (month) | else → 8 (mill)
+   *
+   * @param input - Time fragment (e.g. `"T:greg.m3.c1.y26"` or `"greg.m0.s25.m30"`)
+   */
+  static parseTimeString(
+    input: string,
+  ): { components: Partial<TPSComponents>; order: TimeOrder } | null {
+    let s = input.trim();
+    // strip off anything after signature or extensions/query/fragment
+    s = s.split(/[!;?#]/)[0];
+    if (s.startsWith("T:")) s = s.slice(2);
+    const parts = s.split(".");
+    if (parts.length === 0) return null;
+    const calendar = parts[0];
+    const comp: Partial<TPSComponents> = { calendar };
+
+    // Fixed-rank prefixes (unambiguous regardless of position)
+    const fixedRankMap: Record<string, number> = {
+      c: 7,
+      y: 6,
+      d: 4,
+      h: 3,
+      s: 1,
+    };
+
+    // ── Step 1: pre-scan non-m tokens to estimate order ─────────────────────
+    // This is only needed to handle the first 'm' token when lastAssignedRank
+    // is still null (nothing has been seen yet).
+    let initialOrder: TimeOrder = TimeOrder.DESC;
+    if (calendar !== DefaultCalendars.UNIX) {
+      const nonMRanks: number[] = [];
+      for (let i = 1; i < parts.length; i++) {
+        const pr = parts[i]?.charAt(0);
+        if (pr && pr in fixedRankMap) nonMRanks.push(fixedRankMap[pr]);
+      }
+      if (nonMRanks.length >= 2) {
+        const isAsc = nonMRanks.every((v, i, a) => i === 0 || a[i - 1] <= v);
+        if (isAsc) initialOrder = TimeOrder.ASC;
+      }
+    }
+
+    // ── Step 2: resolve the semantic rank of an 'm' token ───────────────────
+    const assignMRank = (lastRank: number | null, ord: TimeOrder): number => {
+      if (ord === TimeOrder.DESC) {
+        if (lastRank === null) return 8; // first token → millennium
+        if (lastRank > 5) return 5; // after century / year  → month
+        if (lastRank > 2) return 2; // after day / hour      → minute
+        return 0; // after second          → millisecond
+      } else {
+        if (lastRank === null) return 0; // first token → millisecond
+        if (lastRank < 2) return 2; // after millisecond / second → minute
+        if (lastRank < 5) return 5; // after minute / hour / day  → month
+        return 8; // after month / year / cent  → millennium
+      }
+    };
+
+    // ── Step 3: iterate and build components ────────────────────────────────
+    const ranks: number[] = [];
+    let lastAssignedRank: number | null = null;
+
+    for (let i = 1; i < parts.length; i++) {
+      const token = parts[i];
+      if (!token) continue;
+      const prefix = token.charAt(0);
+      const value = token.slice(1);
+
+      // UNIX calendar: single 's' token carries the full unix timestamp
+      if (calendar === DefaultCalendars.UNIX && prefix === "s") {
+        comp.unixSeconds = parseFloat(value);
+        ranks.push(9);
+        continue;
+      }
+
+      if (prefix === "m") {
+        const rank = assignMRank(lastAssignedRank, initialOrder);
+        switch (rank) {
+          case 8:
+            comp.millennium = parseInt(value, 10);
+            break;
+          case 5:
+            comp.month = parseInt(value, 10);
+            break;
+          case 2:
+            comp.minute = parseInt(value, 10);
+            break;
+          case 0:
+            comp.millisecond = parseInt(value, 10);
+            break;
+        }
+        ranks.push(rank);
+        lastAssignedRank = rank;
+      } else {
+        switch (prefix) {
+          case "c":
+            comp.century = parseInt(value, 10);
+            ranks.push(7);
+            lastAssignedRank = 7;
+            break;
+          case "y":
+            comp.year = parseInt(value, 10);
+            ranks.push(6);
+            lastAssignedRank = 6;
+            break;
+          case "d":
+            comp.day = parseInt(value, 10);
+            ranks.push(4);
+            lastAssignedRank = 4;
+            break;
+          case "h":
+            comp.hour = parseInt(value, 10);
+            ranks.push(3);
+            lastAssignedRank = 3;
+            break;
+          case "s":
+            comp.second = parseFloat(value);
+            ranks.push(1);
+            lastAssignedRank = 1;
+            break;
+          default:
+            // unknown prefix – ignore
+            break;
+        }
+      }
+    }
+
+    // ── Step 4: confirm order from the complete rank sequence ────────────────
+    let order: TimeOrder = TimeOrder.DESC;
+    if (ranks.length > 1) {
+      const isAsc = ranks.every((v, i, a) => i === 0 || a[i - 1] <= v);
+      const isDesc = ranks.every((v, i, a) => i === 0 || a[i - 1] >= v);
+      if (isAsc && !isDesc) order = TimeOrder.ASC;
+      // mixed / single direction → defaults to DESC
+    }
+
+    return { components: comp, order };
+  }
+
   private static _mapGroupsToComponents(
     g: Record<string, string>,
   ): TPSComponents {
     const components: any = {};
-    components.calendar = g.calendar as CalendarCode;
-
-    // Time Mapping
-    if (components.calendar === 'unix' && g.unix) {
-      components.unixSeconds = parseFloat(g.unix.substring(1));
-    } else {
-      if (g.millennium) components.millennium = parseInt(g.millennium, 10);
-      if (g.century) components.century = parseInt(g.century, 10);
-      if (g.year) components.year = parseInt(g.year, 10);
-      if (g.month) components.month = parseInt(g.month, 10);
-      if (g.day) components.day = parseInt(g.day, 10);
-      if (g.hour) components.hour = parseInt(g.hour, 10);
-      if (g.minute) components.minute = parseInt(g.minute, 10);
-      if (g.second) components.second = parseFloat(g.second);
-    }
+    components.calendar = g.calendar as string;
 
     // Signature Mapping
     if (g.signature) {
@@ -647,11 +1028,11 @@ export class TPS {
     // Space Mapping
     if (g.space) {
       // Privacy markers
-      if (g.space === 'unknown' || g.space === '-') {
+      if (g.space === "unknown" || g.space === "-") {
         components.isUnknownLocation = true;
-      } else if (g.space === 'redacted') {
+      } else if (g.space === "redacted") {
         components.isRedactedLocation = true;
-      } else if (g.space === 'hidden' || g.space === '~') {
+      } else if (g.space === "hidden" || g.space === "~") {
         components.isHiddenLocation = true;
       }
       // Geospatial cells
@@ -682,9 +1063,9 @@ export class TPS {
     // Extensions Mapping
     if (g.extensions) {
       const extObj: any = {};
-      const parts = g.extensions.split('.');
+      const parts = g.extensions.split(".");
       parts.forEach((p: string) => {
-        const eqIdx = p.indexOf('=');
+        const eqIdx = p.indexOf("=");
         if (eqIdx > 0) {
           const key = p.substring(0, eqIdx);
           const val = p.substring(eqIdx + 1);
@@ -701,12 +1082,13 @@ export class TPS {
 
     return components as TPSComponents;
   }
-
-  private static pad(n: number): string {
-    const s = n.toString();
-    return s.length < 2 ? '0' + s : s;
-  }
 }
+
+// register built-in drivers and set default
+// (tps and gregorian provide canonical conversions before unix)
+TPS.registerDriver(new TpsDriver());
+TPS.registerDriver(new GregorianDriver());
+TPS.registerDriver(new UnixDriver());
 
 // --- TPS-UID v1 Types ---
 
@@ -756,7 +1138,7 @@ export type TPSUID7RBEncodeOptions = {
  *
  * @example
  * ```ts
- * const tps = 'tps://31.95,35.91@T:greg.m3.c1.y26.M01.d09';
+ * const tps = 'tps://31.95,35.91@T:greg.m3.c1.y26.m01.d09';
  *
  * // Encode to binary
  * const bytes = TPSUID7RB.encodeBinary(tps);
@@ -792,9 +1174,9 @@ export class TPSUID7RB {
    * @param opts - Encoding options (compress, epochMs override)
    * @returns Binary TPS-UID as Uint8Array
    */
-  static encodeBinary(tps: string, opts?: TPSUID7RBEncodeOptions): Uint8Array {
-    const compress = opts?.compress ?? false;
-    const epochMs = opts?.epochMs ?? this.epochMsFromTPSString(tps);
+  static encodeBinary(tps: string, opts: TPSUID7RBEncodeOptions = {}): Uint8Array {
+    const compress = opts.compress ?? false;
+    const epochMs = opts.epochMs ?? this.epochMsFromTPSString(tps);
 
     if (!Number.isInteger(epochMs) || epochMs < 0) {
       throw new Error('epochMs must be a non-negative integer');
@@ -925,7 +1307,7 @@ export class TPSUID7RB {
    * @returns Base64url encoded TPS-UID with prefix
    */
   static encodeBinaryB64(tps: string, opts?: TPSUID7RBEncodeOptions): string {
-    const bytes = this.encodeBinary(tps, opts);
+    const bytes = this.encodeBinary(tps, opts ?? {});
     return `${this.PREFIX}${this.base64UrlEncode(bytes)}`;
   }
 
@@ -967,9 +1349,26 @@ export class TPSUID7RB {
     longitude?: number;
     altitude?: number;
     compress?: boolean;
+    order?: TimeOrder;
   }): string {
     const now = new Date();
-    const tps = this.generateTPSString(now, opts);
+    // produce base tps using TPS.fromDate to honour order
+    let tps = TPS.fromDate(now, DefaultCalendars.TPS, {
+      order: opts?.order,
+    });
+
+    // if location provided, merge via parse/URI
+    if (
+      opts?.latitude !== undefined &&
+      opts?.longitude !== undefined
+    ) {
+      const comp = TPS.parse(tps) as TPSComponents;
+      comp.latitude = opts.latitude;
+      comp.longitude = opts.longitude;
+      if (opts.altitude !== undefined) comp.altitude = opts.altitude;
+      tps = TPS.toURI(comp);
+    }
+
     return this.encodeBinaryB64(tps, {
       compress: opts?.compress,
       epochMs: now.getTime(),
@@ -983,25 +1382,29 @@ export class TPSUID7RB {
   /**
    * Generate a TPS string from a Date and optional location.
    */
+  // NOTE: this helper is primarily used by `generate()`; drivers and
+  // callers should prefer `TPS.fromDate()` when order or calendars matter.
   private static generateTPSString(
     date: Date,
-    opts?: { latitude?: number; longitude?: number; altitude?: number },
+    opts?: { latitude?: number; longitude?: number; altitude?: number; order?: TimeOrder },
   ): string {
     const fullYear = date.getUTCFullYear();
-    const m = Math.floor(fullYear / 1000) + 1;
-    const c = Math.floor((fullYear % 1000) / 100) + 1;
-    const y = fullYear % 100;
-    const M = date.getUTCMonth() + 1;
-    const d = date.getUTCDate();
-    const h = date.getUTCHours();
-    const n = date.getUTCMinutes();
-    const s = date.getUTCSeconds();
+    const comp: TPSComponents = {
+      calendar: DefaultCalendars.TPS,
+      millennium: Math.floor(fullYear / 1000) + 1,
+      century: Math.floor((fullYear % 1000) / 100) + 1,
+      year: fullYear % 100,
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+      hour: date.getUTCHours(),
+      minute: date.getUTCMinutes(),
+      second: date.getUTCSeconds(),
+      millisecond: date.getUTCMilliseconds(),
+    };
+    if (opts?.order) comp.order = opts.order;
 
-    const pad = (num: number) => num.toString().padStart(2, '0');
-
-    const timePart = `T:greg.m${m}.c${c}.y${y}.M${pad(M)}.d${pad(d)}.h${pad(
-      h,
-    )}.n${pad(n)}.s${pad(s)}`;
+    // note: this method belongs to TPSUID7RB, but buildTimePart lives on TPS
+    const timePart = TPS.buildTimePart(comp);
 
     let spacePart = 'unknown';
     if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
@@ -1019,63 +1422,9 @@ export class TPSUID7RB {
    * Supports both URI format (tps://...) and time-only format (T:greg...)
    */
   static epochMsFromTPSString(tps: string): number {
-    let time: string;
-
-    if (tps.includes('@')) {
-      // URI format: tps://...@T:greg...
-      const at = tps.indexOf('@');
-      time = tps.slice(at + 1).trim();
-    } else if (tps.startsWith('T:')) {
-      // Time-only format
-      time = tps;
-    } else {
-      throw new Error('TPS: unrecognized format');
-    }
-
-    if (!time.startsWith('T:greg.')) {
-      throw new Error('TPS: only T:greg.* parsing is supported');
-    }
-
-    // Extract m (millennium), c (century), y (year)
-    const mMatch = time.match(/\.m(-?\d+)/);
-    const cMatch = time.match(/\.c(\d+)/);
-    const yMatch = time.match(/\.y(\d{1,4})/);
-    const MMatch = time.match(/\.M(\d{1,2})/);
-    const dMatch = time.match(/\.d(\d{1,2})/);
-    const hMatch = time.match(/\.h(\d{1,2})/);
-    const nMatch = time.match(/\.n(\d{1,2})/);
-    const sMatch = time.match(/\.s(\d{1,2})/);
-
-    // Calculate full year from millennium, century, year
-    let fullYear: number;
-    if (mMatch && cMatch && yMatch) {
-      const millennium = parseInt(mMatch[1], 10);
-      const century = parseInt(cMatch[1], 10);
-      const year = parseInt(yMatch[1], 10);
-      fullYear = (millennium - 1) * 1000 + (century - 1) * 100 + year;
-    } else if (yMatch) {
-      // Fallback: interpret y as 2-digit year
-      let year = parseInt(yMatch[1], 10);
-      if (year < 100) {
-        year = year <= 69 ? 2000 + year : 1900 + year;
-      }
-      fullYear = year;
-    } else {
-      throw new Error('TPS: missing year component');
-    }
-
-    const month = MMatch ? parseInt(MMatch[1], 10) : 1;
-    const day = dMatch ? parseInt(dMatch[1], 10) : 1;
-    const hour = hMatch ? parseInt(hMatch[1], 10) : 0;
-    const minute = nMatch ? parseInt(nMatch[1], 10) : 0;
-    const second = sMatch ? parseInt(sMatch[1], 10) : 0;
-
-    const epoch = Date.UTC(fullYear, month - 1, day, hour, minute, second);
-    if (!Number.isFinite(epoch)) {
-      throw new Error('TPS: failed to compute epochMs');
-    }
-
-    return epoch;
+    const date = TPS.toDate(tps);
+    if (!date) throw new Error('TPS: unable to parse date for epoch');
+    return date.getTime();
   }
 
   // ---------------------------

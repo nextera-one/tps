@@ -50,7 +50,9 @@ node test/driver-usage.test.js
 
 ## Quick Start
 
-### To create a custom calendar driver:
+*Time order flexibility:* TPS strings can list time components largest‑to‑smallest (default) or reversed.  Our library exposes an `order` option and the parser automatically detects non‑canonical orientation.
+
+### To create a custom calendar driver
 
 1. Read [DRIVER_GUIDE.md](./DRIVER_GUIDE.md)
 2. Look at examples in [driver-usage.test.ts](./driver-usage.test.ts)
@@ -59,7 +61,7 @@ node test/driver-usage.test.js
 5. Test your driver against edge cases
 6. Register with `TPS.registerDriver()`
 
-### Example minimal driver:
+### Example minimal driver
 
 ```typescript
 import { CalendarDriver, TPSComponents, CalendarCode } from "../src/index";
@@ -109,7 +111,7 @@ interface CalendarDriver {
 
 ### The Conversion Pipeline
 
-```
+```text
 Your Calendar → Gregorian Date → Another Calendar
                    ↓
               (Gregorian is always the hub)
