@@ -6,7 +6,7 @@ exports.TpsDriver = void 0;
  *
  * TPS Calendar characteristics:
  * - Epoch: August 11, 1999 (00:00 UTC)
- * - Months: Always 28 days (13 months per year = 364 days)
+ * - Months: Always 28 days (12 months per year = 336 days)
  * - Time offset: 7 hours ahead of Gregorian (00:00 Gregorian = 07:00 TPS)
  *
  * Conversion process:

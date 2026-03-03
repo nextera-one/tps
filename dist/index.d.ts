@@ -403,7 +403,7 @@ export declare class TPS {
  */
 export type TPSUID7RBDecodeResult = {
     /** Version identifier */
-    version: 'tpsuid7rb';
+    version: "tpsuid7rb";
     /** Epoch milliseconds (UTC) */
     epochMs: number;
     /** Whether the TPS payload was compressed */
@@ -566,4 +566,59 @@ export declare class TPSUID7RB {
     private static verifyEd25519;
     /** Generate cryptographically secure random bytes */
     private static randomBytes;
+}
+/**
+ * `TpsDate` is a Date-like wrapper with native TPS conversion helpers.
+ *
+ * It mirrors common JavaScript `Date` construction patterns:
+ * - `new TpsDate()`
+ * - `new TpsDate(ms)`
+ * - `new TpsDate(isoString)`
+ * - `new TpsDate(tpsString)`
+ * - `new TpsDate(year, monthIndex, day?, hour?, minute?, second?, ms?)`
+ */
+export declare class TpsDate {
+    private readonly internal;
+    constructor();
+    constructor(value: string | number | Date | TpsDate);
+    constructor(year: number, monthIndex: number, day?: number, hours?: number, minutes?: number, seconds?: number, ms?: number);
+    private static looksLikeTPS;
+    static now(): number;
+    static parse(input: string): number;
+    static UTC(year: number, monthIndex: number, day?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number;
+    static fromTPS(tps: string): TpsDate;
+    toDate(): Date;
+    toTPS(calendar?: string, opts?: {
+        order?: TimeOrder;
+    }): string;
+    toTPSURI(calendar?: string, opts?: {
+        order?: TimeOrder;
+        latitude?: number;
+        longitude?: number;
+        altitude?: number;
+        isUnknownLocation?: boolean;
+        isHiddenLocation?: boolean;
+        isRedactedLocation?: boolean;
+    }): string;
+    getTime(): number;
+    valueOf(): number;
+    toString(): string;
+    toISOString(): string;
+    toUTCString(): string;
+    toJSON(): string | null;
+    getFullYear(): number;
+    getUTCFullYear(): number;
+    getMonth(): number;
+    getUTCMonth(): number;
+    getDate(): number;
+    getUTCDate(): number;
+    getHours(): number;
+    getUTCHours(): number;
+    getMinutes(): number;
+    getUTCMinutes(): number;
+    getSeconds(): number;
+    getUTCSeconds(): number;
+    getMilliseconds(): number;
+    getUTCMilliseconds(): number;
+    [Symbol.toPrimitive](hint: string): string | number;
 }

@@ -23,12 +23,12 @@ import { TpsDriver } from "./drivers/tps";
 // calendars.  The library still exports constants for the built-in values but
 // callers may also supply their own codes.
 export const DefaultCalendars = {
-  TPS: 'tps',
-  GREG: 'greg',
-  HIJ: 'hij',
-  JUL: 'jul',
-  HOLO: 'holo',
-  UNIX: 'unix',
+  TPS: "tps",
+  GREG: "greg",
+  HIJ: "hij",
+  JUL: "jul",
+  HOLO: "holo",
+  UNIX: "unix",
 } as const;
 
 /**
@@ -37,8 +37,8 @@ export const DefaultCalendars = {
  * second), but `'ascending'` produces the reverse order.
  */
 export enum TimeOrder {
-  DESC = 'desc',
-  ASC = 'asc',
+  DESC = "desc",
+  ASC = "asc",
 }
 
 export interface TPSComponents {
@@ -106,7 +106,7 @@ export interface TPSComponents {
   extensions?: Record<string, string>;
 
   order?: TimeOrder;
-} 
+}
 
 // --- PLUGIN ARCHITECTURE ---
 
@@ -319,7 +319,7 @@ export class TPS {
       "@T:(?<calendar>[a-z]{3,4})" +
       "(?:\\.(?:m-?\\d+|c\\d+|y\\d+|d\\d{1,2}|h\\d{1,2}|s\\d+(?:\\.\\d+)?))*" +
       "(?:![^;?#]+)?" +
-      "(?:;(?<extensions>[a-z0-9.\-_=]+))?" +
+      "(?:;(?<extensions>[^?#]+))?" +
       "(?:\\?[^#]+)?" +
       "(?:#.+)?$",
   );
@@ -1097,7 +1097,7 @@ TPS.registerDriver(new UnixDriver());
  */
 export type TPSUID7RBDecodeResult = {
   /** Version identifier */
-  version: 'tpsuid7rb';
+  version: "tpsuid7rb";
   /** Epoch milliseconds (UTC) */
   epochMs: number;
   /** Whether the TPS payload was compressed */
@@ -1158,7 +1158,7 @@ export class TPSUID7RB {
   /** Version 1 */
   private static readonly VER = 0x01;
   /** String prefix for base64url encoded form */
-  private static readonly PREFIX = 'tpsuid7rb_';
+  private static readonly PREFIX = "tpsuid7rb_";
   /** Regex for validating base64url encoded form */
   public static readonly REGEX = /^tpsuid7rb_[A-Za-z0-9_-]+$/;
 
@@ -1174,15 +1174,18 @@ export class TPSUID7RB {
    * @param opts - Encoding options (compress, epochMs override)
    * @returns Binary TPS-UID as Uint8Array
    */
-  static encodeBinary(tps: string, opts: TPSUID7RBEncodeOptions = {}): Uint8Array {
+  static encodeBinary(
+    tps: string,
+    opts: TPSUID7RBEncodeOptions = {},
+  ): Uint8Array {
     const compress = opts.compress ?? false;
     const epochMs = opts.epochMs ?? this.epochMsFromTPSString(tps);
 
     if (!Number.isInteger(epochMs) || epochMs < 0) {
-      throw new Error('epochMs must be a non-negative integer');
+      throw new Error("epochMs must be a non-negative integer");
     }
     if (epochMs > 0xffffffffffff) {
-      throw new Error('epochMs exceeds 48-bit range');
+      throw new Error("epochMs exceeds 48-bit range");
     }
 
     const flags = compress ? 0x01 : 0x00;
@@ -1248,7 +1251,7 @@ export class TPSUID7RB {
   static decodeBinary(bytes: Uint8Array): TPSUID7RBDecodeResult {
     // Header min size: 4+1+1+6+4 + 1 (at least 1 byte varint) = 17
     if (bytes.length < 17) {
-      throw new Error('TPSUID7RB: too short');
+      throw new Error("TPSUID7RB: too short");
     }
 
     // MAGIC
@@ -1258,7 +1261,7 @@ export class TPSUID7RB {
       bytes[2] !== 0x55 ||
       bytes[3] !== 0x37
     ) {
-      throw new Error('TPSUID7RB: bad magic');
+      throw new Error("TPSUID7RB: bad magic");
     }
 
     // VERSION
@@ -1287,7 +1290,7 @@ export class TPSUID7RB {
     offset += bytesRead;
 
     if (offset + tpsLen > bytes.length) {
-      throw new Error('TPSUID7RB: length overflow');
+      throw new Error("TPSUID7RB: length overflow");
     }
 
     // TPS payload
@@ -1295,7 +1298,7 @@ export class TPSUID7RB {
     const tpsUtf8 = compressed ? this.inflateRaw(payload) : payload;
     const tps = new TextDecoder().decode(tpsUtf8);
 
-    return { version: 'tpsuid7rb', epochMs, compressed, nonce, tps };
+    return { version: "tpsuid7rb", epochMs, compressed, nonce, tps };
   }
 
   /**
@@ -1320,7 +1323,7 @@ export class TPSUID7RB {
   static decodeBinaryB64(id: string): TPSUID7RBDecodeResult {
     const s = id.trim();
     if (!s.startsWith(this.PREFIX)) {
-      throw new Error('TPSUID7RB: missing prefix');
+      throw new Error("TPSUID7RB: missing prefix");
     }
     const b64 = s.slice(this.PREFIX.length);
     const bytes = this.base64UrlDecode(b64);
@@ -1352,22 +1355,19 @@ export class TPSUID7RB {
     order?: TimeOrder;
   }): string {
     const now = new Date();
-    // produce base tps using TPS.fromDate to honour order
-    let tps = TPS.fromDate(now, DefaultCalendars.TPS, {
+    const time = TPS.fromDate(now, DefaultCalendars.TPS, {
       order: opts?.order,
     });
+    let space = "unknown";
 
-    // if location provided, merge via parse/URI
-    if (
-      opts?.latitude !== undefined &&
-      opts?.longitude !== undefined
-    ) {
-      const comp = TPS.parse(tps) as TPSComponents;
-      comp.latitude = opts.latitude;
-      comp.longitude = opts.longitude;
-      if (opts.altitude !== undefined) comp.altitude = opts.altitude;
-      tps = TPS.toURI(comp);
+    if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
+      space = `${opts.latitude},${opts.longitude}`;
+      if (opts.altitude !== undefined) {
+        space += `,${opts.altitude}m`;
+      }
     }
+
+    const tps = `tps://${space}@${time}`;
 
     return this.encodeBinaryB64(tps, {
       compress: opts?.compress,
@@ -1386,7 +1386,12 @@ export class TPSUID7RB {
   // callers should prefer `TPS.fromDate()` when order or calendars matter.
   private static generateTPSString(
     date: Date,
-    opts?: { latitude?: number; longitude?: number; altitude?: number; order?: TimeOrder },
+    opts?: {
+      latitude?: number;
+      longitude?: number;
+      altitude?: number;
+      order?: TimeOrder;
+    },
   ): string {
     const fullYear = date.getUTCFullYear();
     const comp: TPSComponents = {
@@ -1406,7 +1411,7 @@ export class TPSUID7RB {
     // note: this method belongs to TPSUID7RB, but buildTimePart lives on TPS
     const timePart = TPS.buildTimePart(comp);
 
-    let spacePart = 'unknown';
+    let spacePart = "unknown";
     if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
       spacePart = `${opts.latitude},${opts.longitude}`;
       if (opts.altitude !== undefined) {
@@ -1423,8 +1428,14 @@ export class TPSUID7RB {
    */
   static epochMsFromTPSString(tps: string): number {
     const date = TPS.toDate(tps);
-    if (!date) throw new Error('TPS: unable to parse date for epoch');
-    return date.getTime();
+    if (date) return date.getTime();
+
+    // If parse fails due to unsupported/extended extension payloads,
+    // strip extensions/query/fragment and retry. Epoch only depends on time.
+    const stripped = tps.replace(/;[^?#]*/, "").replace(/[?#].*$/, "");
+    const retryDate = TPS.toDate(stripped);
+    if (!retryDate) throw new Error("TPS: unable to parse date for epoch");
+    return retryDate.getTime();
   }
 
   // ---------------------------
@@ -1457,7 +1468,7 @@ export class TPSUID7RB {
 
     const n = Number(v);
     if (!Number.isSafeInteger(n)) {
-      throw new Error('TPSUID7RB: u48 not safe integer');
+      throw new Error("TPSUID7RB: u48 not safe integer");
     }
     return n;
   }
@@ -1465,7 +1476,7 @@ export class TPSUID7RB {
   /** Encode unsigned integer as LEB128 varint */
   private static uvarintEncode(n: number): Uint8Array {
     if (!Number.isInteger(n) || n < 0) {
-      throw new Error('uvarint must be non-negative int');
+      throw new Error("uvarint must be non-negative int");
     }
     const out: number[] = [];
     let x = n >>> 0;
@@ -1487,12 +1498,12 @@ export class TPSUID7RB {
     let i = 0;
     while (true) {
       if (offset + i >= bytes.length) {
-        throw new Error('uvarint overflow');
+        throw new Error("uvarint overflow");
       }
       const b = bytes[offset + i];
       if (b < 0x80) {
         if (i > 9 || (i === 9 && b > 1)) {
-          throw new Error('uvarint too large');
+          throw new Error("uvarint too large");
         }
         x |= b << s;
         return { value: x >>> 0, bytesRead: i + 1 };
@@ -1501,7 +1512,7 @@ export class TPSUID7RB {
       s += 7;
       i++;
       if (i > 10) {
-        throw new Error('uvarint too long');
+        throw new Error("uvarint too long");
       }
     }
   }
@@ -1513,35 +1524,35 @@ export class TPSUID7RB {
   /** Encode bytes to base64url (no padding) */
   private static base64UrlEncode(bytes: Uint8Array): string {
     // Node.js environment
-    if (typeof Buffer !== 'undefined') {
+    if (typeof Buffer !== "undefined") {
       return Buffer.from(bytes)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/g, '');
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/g, "");
     }
     // Browser environment
-    let binary = '';
+    let binary = "";
     for (let i = 0; i < bytes.length; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary)
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/g, '');
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
   }
 
   /** Decode base64url to bytes */
   private static base64UrlDecode(b64url: string): Uint8Array {
     // Add padding
     const padLen = (4 - (b64url.length % 4)) % 4;
-    const b64 = (b64url + '='.repeat(padLen))
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
+    const b64 = (b64url + "=".repeat(padLen))
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
 
     // Node.js environment
-    if (typeof Buffer !== 'undefined') {
-      return new Uint8Array(Buffer.from(b64, 'base64'));
+    if (typeof Buffer !== "undefined") {
+      return new Uint8Array(Buffer.from(b64, "base64"));
     }
     // Browser environment
     const binary = atob(b64);
@@ -1559,33 +1570,33 @@ export class TPSUID7RB {
   /** Compress using zlib deflate raw */
   private static deflateRaw(data: Uint8Array): Uint8Array {
     // Node.js environment
-    if (typeof require !== 'undefined') {
+    if (typeof require !== "undefined") {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const zlib = require('zlib');
+        const zlib = require("zlib");
         return new Uint8Array(zlib.deflateRawSync(Buffer.from(data)));
       } catch {
-        throw new Error('TPSUID7RB: compression not available');
+        throw new Error("TPSUID7RB: compression not available");
       }
     }
     // Browser: would need pako or similar library
-    throw new Error('TPSUID7RB: compression not available in browser');
+    throw new Error("TPSUID7RB: compression not available in browser");
   }
 
   /** Decompress using zlib inflate raw */
   private static inflateRaw(data: Uint8Array): Uint8Array {
     // Node.js environment
-    if (typeof require !== 'undefined') {
+    if (typeof require !== "undefined") {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const zlib = require('zlib');
+        const zlib = require("zlib");
         return new Uint8Array(zlib.inflateRawSync(Buffer.from(data)));
       } catch {
-        throw new Error('TPSUID7RB: decompression failed');
+        throw new Error("TPSUID7RB: decompression failed");
       }
     }
     // Browser: would need pako or similar library
-    throw new Error('TPSUID7RB: decompression not available in browser');
+    throw new Error("TPSUID7RB: decompression not available in browser");
   }
 
   // ---------------------------
@@ -1620,7 +1631,7 @@ export class TPSUID7RB {
 
     // Validate epoch
     if (!Number.isInteger(epochMs) || epochMs < 0 || epochMs > 0xffffffffffff) {
-      throw new Error('epochMs must be a valid 48-bit non-negative integer');
+      throw new Error("epochMs must be a valid 48-bit non-negative integer");
     }
 
     // Flags: Bit 0 = compress, Bit 1 = sealed
@@ -1676,7 +1687,7 @@ export class TPSUID7RB {
     sealedBytes: Uint8Array,
     publicKey: string | Buffer | Uint8Array,
   ): TPSUID7RBDecodeResult {
-    if (sealedBytes.length < 18) throw new Error('TPSUID7RB: too short');
+    if (sealedBytes.length < 18) throw new Error("TPSUID7RB: too short");
 
     // Check Magic
     if (
@@ -1685,13 +1696,13 @@ export class TPSUID7RB {
       sealedBytes[2] !== 0x55 ||
       sealedBytes[3] !== 0x37
     ) {
-      throw new Error('TPSUID7RB: bad magic');
+      throw new Error("TPSUID7RB: bad magic");
     }
 
     // Check Flags for Sealed Bit (bit 1)
     const flags = sealedBytes[5];
     if ((flags & 0x02) === 0) {
-      throw new Error('TPSUID7RB: not a sealed UID');
+      throw new Error("TPSUID7RB: not a sealed UID");
     }
 
     // 1. Parse the structure to find where content ends
@@ -1706,7 +1717,7 @@ export class TPSUID7RB {
     const payloadEnd = offset + tpsLen;
 
     if (payloadEnd > sealedBytes.length) {
-      throw new Error('TPSUID7RB: length overflow (truncated)');
+      throw new Error("TPSUID7RB: length overflow (truncated)");
     }
 
     // The Content to verify matches exactly [0 ... payloadEnd]
@@ -1714,7 +1725,7 @@ export class TPSUID7RB {
 
     // After content: SealType (1 byte) + Signature
     if (sealedBytes.length <= payloadEnd + 1) {
-      throw new Error('TPSUID7RB: missing signature data');
+      throw new Error("TPSUID7RB: missing signature data");
     }
 
     const sealType = sealedBytes[payloadEnd];
@@ -1734,7 +1745,7 @@ export class TPSUID7RB {
     // Verify
     const isValid = this.verifyEd25519(content, signature, publicKey);
     if (!isValid) {
-      throw new Error('TPSUID7RB: signature verification failed');
+      throw new Error("TPSUID7RB: signature verification failed");
     }
 
     // Decode (reuse standard logic, but ignoring the extra bytes at end is fine?)
@@ -1752,10 +1763,10 @@ export class TPSUID7RB {
     data: Uint8Array,
     privateKey: string | Buffer | Uint8Array,
   ): Uint8Array {
-    if (typeof require !== 'undefined') {
+    if (typeof require !== "undefined") {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const crypto = require('crypto');
+        const crypto = require("crypto");
         // Node's crypto.sign uses PEM or KeyObject, but for raw Ed25519 keys we might need 'crypto.sign(null, data, key)'
         // or ensure key is properly formatted.
         // For simplicity in Node 20+, crypto.sign(null, data, privateKey) works if key is KeyObject.
@@ -1768,8 +1779,8 @@ export class TPSUID7RB {
           // Let's assume standard Ed25519 standard implementation pattern logic:
           keyObj = crypto.createPrivateKey({
             key: Buffer.from(privateKey),
-            format: 'der', // or 'pem' - strict.
-            type: 'pkcs8',
+            format: "der", // or 'pem' - strict.
+            type: "pkcs8",
           });
           // Actually, simpler: construct key object from raw bytes if possible?
           // Node's crypto is strict. Let's try the simplest:
@@ -1783,11 +1794,11 @@ export class TPSUID7RB {
         // Handling RAW Ed25519 keys in Node requires specific 'crypto.createPrivateKey' with 'raw' format (Node 11.6+).
 
         const key =
-          typeof privateKey === 'string' && !privateKey.includes('PRIVATE KEY')
+          typeof privateKey === "string" && !privateKey.includes("PRIVATE KEY")
             ? crypto.createPrivateKey({
-                key: Buffer.from(privateKey, 'hex'),
-                format: 'pem',
-                type: 'pkcs8',
+                key: Buffer.from(privateKey, "hex"),
+                format: "pem",
+                type: "pkcs8",
               }) // Fallback guess
             : privateKey;
 
@@ -1796,10 +1807,10 @@ export class TPSUID7RB {
         return new Uint8Array(crypto.sign(null, data, key));
       } catch (e) {
         // If standard crypto fails (e.g. key format issue), throw
-        throw new Error('TPSUID7RB: signing failed (check key format)');
+        throw new Error("TPSUID7RB: signing failed (check key format)");
       }
     }
-    throw new Error('TPSUID7RB: signing not available in browser');
+    throw new Error("TPSUID7RB: signing not available in browser");
   }
 
   private static verifyEd25519(
@@ -1807,16 +1818,16 @@ export class TPSUID7RB {
     signature: Uint8Array,
     publicKey: string | Buffer | Uint8Array,
   ): boolean {
-    if (typeof require !== 'undefined') {
+    if (typeof require !== "undefined") {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const crypto = require('crypto');
+        const crypto = require("crypto");
         return crypto.verify(null, data, publicKey, signature);
       } catch {
         return false;
       }
     }
-    throw new Error('TPSUID7RB: verification not available in browser');
+    throw new Error("TPSUID7RB: verification not available in browser");
   }
 
   // ---------------------------
@@ -1826,21 +1837,259 @@ export class TPSUID7RB {
   /** Generate cryptographically secure random bytes */
   private static randomBytes(length: number): Uint8Array {
     // Node.js environment
-    if (typeof require !== 'undefined') {
+    if (typeof require !== "undefined") {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const crypto = require('crypto');
+        const crypto = require("crypto");
         return new Uint8Array(crypto.randomBytes(length));
       } catch {
         // Fallback to crypto.getRandomValues
       }
     }
     // Browser or fallback
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
       const bytes = new Uint8Array(length);
       crypto.getRandomValues(bytes);
       return bytes;
     }
-    throw new Error('TPSUID7RB: no crypto available');
+    throw new Error("TPSUID7RB: no crypto available");
+  }
+}
+
+/**
+ * `TpsDate` is a Date-like wrapper with native TPS conversion helpers.
+ *
+ * It mirrors common JavaScript `Date` construction patterns:
+ * - `new TpsDate()`
+ * - `new TpsDate(ms)`
+ * - `new TpsDate(isoString)`
+ * - `new TpsDate(tpsString)`
+ * - `new TpsDate(year, monthIndex, day?, hour?, minute?, second?, ms?)`
+ */
+export class TpsDate {
+  private readonly internal: Date;
+
+  constructor();
+  constructor(value: string | number | Date | TpsDate);
+  constructor(
+    year: number,
+    monthIndex: number,
+    day?: number,
+    hours?: number,
+    minutes?: number,
+    seconds?: number,
+    ms?: number,
+  );
+  constructor(
+    ...args:
+      | []
+      | [string | number | Date | TpsDate]
+      | [number, number, number?, number?, number?, number?, number?]
+  ) {
+    if (args.length === 0) {
+      this.internal = new Date();
+      return;
+    }
+
+    if (args.length === 1) {
+      const value = args[0];
+      if (value instanceof TpsDate) {
+        this.internal = new Date(value.getTime());
+        return;
+      }
+      if (value instanceof Date) {
+        this.internal = new Date(value.getTime());
+        return;
+      }
+      if (typeof value === "string" && TpsDate.looksLikeTPS(value)) {
+        const parsed = TPS.toDate(value);
+        if (!parsed) {
+          throw new RangeError(`Invalid TPS date string: ${value}`);
+        }
+        this.internal = parsed;
+        return;
+      }
+
+      this.internal = new Date(value);
+      return;
+    }
+
+    const [year, monthIndex, day, hours, minutes, seconds, ms] = args;
+    this.internal = new Date(
+      year,
+      monthIndex,
+      day ?? 1,
+      hours ?? 0,
+      minutes ?? 0,
+      seconds ?? 0,
+      ms ?? 0,
+    );
+  }
+
+  private static looksLikeTPS(input: string): boolean {
+    const s = input.trim();
+    return s.startsWith("tps://") || s.startsWith("T:") || s.startsWith("t:");
+  }
+
+  static now(): number {
+    return Date.now();
+  }
+
+  static parse(input: string): number {
+    if (this.looksLikeTPS(input)) {
+      const d = TPS.toDate(input);
+      return d ? d.getTime() : Number.NaN;
+    }
+    return Date.parse(input);
+  }
+
+  static UTC(
+    year: number,
+    monthIndex: number,
+    day?: number,
+    hours?: number,
+    minutes?: number,
+    seconds?: number,
+    ms?: number,
+  ): number {
+    return Date.UTC(
+      year,
+      monthIndex,
+      day ?? 1,
+      hours ?? 0,
+      minutes ?? 0,
+      seconds ?? 0,
+      ms ?? 0,
+    );
+  }
+
+  static fromTPS(tps: string): TpsDate {
+    return new TpsDate(tps);
+  }
+
+  toDate(): Date {
+    return new Date(this.internal.getTime());
+  }
+
+  toTPS(
+    calendar: string = DefaultCalendars.TPS,
+    opts?: { order?: TimeOrder },
+  ): string {
+    return TPS.fromDate(this.internal, calendar, opts);
+  }
+
+  toTPSURI(
+    calendar: string = DefaultCalendars.TPS,
+    opts?: {
+      order?: TimeOrder;
+      latitude?: number;
+      longitude?: number;
+      altitude?: number;
+      isUnknownLocation?: boolean;
+      isHiddenLocation?: boolean;
+      isRedactedLocation?: boolean;
+    },
+  ): string {
+    const time = this.toTPS(calendar, { order: opts?.order });
+    const comp = TPS.parse(time) as TPSComponents;
+
+    if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
+      comp.latitude = opts.latitude;
+      comp.longitude = opts.longitude;
+      if (opts.altitude !== undefined) comp.altitude = opts.altitude;
+    } else if (opts?.isHiddenLocation) {
+      comp.isHiddenLocation = true;
+    } else if (opts?.isRedactedLocation) {
+      comp.isRedactedLocation = true;
+    } else {
+      comp.isUnknownLocation = true;
+    }
+
+    return TPS.toURI(comp);
+  }
+
+  getTime(): number {
+    return this.internal.getTime();
+  }
+
+  valueOf(): number {
+    return this.internal.valueOf();
+  }
+
+  toString(): string {
+    return this.internal.toString();
+  }
+
+  toISOString(): string {
+    return this.internal.toISOString();
+  }
+
+  toUTCString(): string {
+    return this.internal.toUTCString();
+  }
+
+  toJSON(): string | null {
+    return this.internal.toJSON();
+  }
+
+  getFullYear(): number {
+    return this.internal.getFullYear();
+  }
+
+  getUTCFullYear(): number {
+    return this.internal.getUTCFullYear();
+  }
+
+  getMonth(): number {
+    return this.internal.getMonth();
+  }
+
+  getUTCMonth(): number {
+    return this.internal.getUTCMonth();
+  }
+
+  getDate(): number {
+    return this.internal.getDate();
+  }
+
+  getUTCDate(): number {
+    return this.internal.getUTCDate();
+  }
+
+  getHours(): number {
+    return this.internal.getHours();
+  }
+
+  getUTCHours(): number {
+    return this.internal.getUTCHours();
+  }
+
+  getMinutes(): number {
+    return this.internal.getMinutes();
+  }
+
+  getUTCMinutes(): number {
+    return this.internal.getUTCMinutes();
+  }
+
+  getSeconds(): number {
+    return this.internal.getSeconds();
+  }
+
+  getUTCSeconds(): number {
+    return this.internal.getUTCSeconds();
+  }
+
+  getMilliseconds(): number {
+    return this.internal.getMilliseconds();
+  }
+
+  getUTCMilliseconds(): number {
+    return this.internal.getUTCMilliseconds();
+  }
+
+  [Symbol.toPrimitive](hint: string): string | number {
+    if (hint === "number") return this.valueOf();
+    return this.toString();
   }
 }
