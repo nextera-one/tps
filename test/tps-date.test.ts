@@ -50,6 +50,18 @@ test("new TpsDate(y,m,d,...) behaves like JS Date", () => {
   return td.getTime() === js.getTime();
 });
 
+test("TPS getters use TPS calendar components", () => {
+  const d = new TpsDate(Date.UTC(2026, 0, 9, 22, 30, 25, 0));
+  // TPS calendar is +7h shifted from Gregorian in current driver,
+  // so this becomes next-day local TPS components.
+  return d.getDate() === 10 && d.getHours() === 5 && d.getMinutes() === 30;
+});
+
+test("toString returns TPS time string", () => {
+  const d = new TpsDate(Date.UTC(2026, 0, 9, 14, 30, 25, 0));
+  return d.toString().startsWith("T:tps.");
+});
+
 test("TpsDate.parse accepts TPS strings", () => {
   const ms = TpsDate.parse("T:greg.m3.c1.y26.m01.d09.h14.m30.s25.m0");
   return ms === Date.UTC(2026, 0, 9, 14, 30, 25, 0);

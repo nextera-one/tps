@@ -88,6 +88,9 @@ export interface TPSComponents {
   /** Logical area within building */
   zone?: string;
 
+  /** Raw pre-@ space anchor (e.g. adm:city:SA:riyadh, node:api-1, net:ip4:203.0.113.10) */
+  spaceAnchor?: string;
+
   // --- SPATIAL: Privacy Markers ---
   /** Technical missing data (e.g. server log without GPS) */
   isUnknownLocation?: boolean;
@@ -313,7 +316,8 @@ export class TPS {
       "plus=(?<plus>[A-Z0-9+]+)|" +
       "w3w=(?<w3w>[a-z]+\\.[a-z]+\\.[a-z]+)|" +
       "bldg=(?<bldg>[\\w-]+)(?:\\.floor=(?<floor>[\\w-]+))?(?:\\.room=(?<room>[\\w-]+))?(?:\\.zone=(?<zone>[\\w-]+))?|" +
-      "(?<lat>-?\\d+(?:\\.\\d+)?),(?<lon>-?\\d+(?:\\.\\d+)?)(?:,(?<alt>-?\\d+(?:\\.\\d+)?)m?)?" +
+      "(?<lat>-?\\d+(?:\\.\\d+)?),(?<lon>-?\\d+(?:\\.\\d+)?)(?:,(?<alt>-?\\d+(?:\\.\\d+)?)m?)?|" +
+      "(?<generic>[^@/?#]+)" +
       ")" +
       "(?:/A:(?<actor>[^/@]+))?" +
       "@T:(?<calendar>[a-z]{3,4})" +
@@ -535,7 +539,9 @@ export class TPS {
     // 1. Build Space Part (L: anchor)
     let spacePart = "L:-"; // Default: unknown
 
-    if (comp.isHiddenLocation) {
+    if (comp.spaceAnchor) {
+      spacePart = comp.spaceAnchor;
+    } else if (comp.isHiddenLocation) {
       spacePart = "L:~";
     } else if (comp.isRedactedLocation) {
       spacePart = "L:redacted";
@@ -599,7 +605,8 @@ export class TPS {
     calendar: string = DefaultCalendars.TPS,
     opts?: { order?: TimeOrder },
   ): string {
-    const driver = this.drivers.get(calendar);
+    const normalizedCalendar = calendar.toLowerCase();
+    const driver = this.drivers.get(normalizedCalendar);
     if (driver) {
       // when caller requested an explicit order we can bypass the driver's
       // `fromDate` helper and instead generate components ourselves so that
@@ -607,7 +614,7 @@ export class TPS {
       // keeps behaviour identical to the old built-in implementation.
       if (opts?.order) {
         const comp = driver.getComponentsFromDate(date) as TPSComponents;
-        comp.calendar = calendar;
+        comp.calendar = normalizedCalendar;
         comp.order = opts.order;
         return this.buildTimePart(comp);
       }
@@ -616,16 +623,16 @@ export class TPS {
 
     // Fallback for old built-in calendars (shouldn't happen once drivers are
     // registered, but kept for backwards compatibility).
-    const comp: TPSComponents = { calendar } as any;
+    const comp: TPSComponents = { calendar: normalizedCalendar } as any;
 
-    if (calendar === DefaultCalendars.UNIX) {
+    if (normalizedCalendar === DefaultCalendars.UNIX) {
       const s = (date.getTime() / 1000).toFixed(3);
       comp.unixSeconds = parseFloat(s);
       if (opts?.order) comp.order = opts.order;
       return this.buildTimePart(comp);
     }
 
-    if (calendar === DefaultCalendars.GREG) {
+    if (normalizedCalendar === DefaultCalendars.GREG) {
       const fullYear = date.getUTCFullYear();
       comp.millennium = Math.floor(fullYear / 1000) + 1;
       comp.century = Math.floor((fullYear % 1000) / 100) + 1;
@@ -641,7 +648,7 @@ export class TPS {
     }
 
     throw new Error(
-      `Calendar driver '${calendar}' not implemented. Register a driver.`,
+      `Calendar driver '${normalizedCalendar}' not implemented. Register a driver.`,
     );
   }
 
@@ -809,8 +816,15 @@ export class TPS {
    * implement custom ordering logic.
    */
   public static buildTimePart(comp: TPSComponents): string {
-    let time = `T:${comp.calendar}`;
-    if (comp.calendar === DefaultCalendars.UNIX) {
+    const calendar = (comp.calendar || "").toLowerCase();
+    if (!/^[a-z]{3,4}$/.test(calendar)) {
+      throw new Error(
+        `Invalid calendar code '${comp.calendar}'. Calendar code width must be 3–4 lowercase letters.`,
+      );
+    }
+
+    let time = `T:${calendar}`;
+    if (calendar === DefaultCalendars.UNIX) {
       if (comp.unixSeconds !== undefined) {
         time += `.s${comp.unixSeconds}`;
       }
@@ -1051,6 +1065,10 @@ export class TPS {
         if (g.floor) components.floor = g.floor;
         if (g.room) components.room = g.room;
         if (g.zone) components.zone = g.zone;
+      }
+      // Generic pre-@ anchor (adm/node/net/planet/etc)
+      else if (g.generic) {
+        components.spaceAnchor = g.generic;
       }
       // GPS coordinates
       else {
@@ -1869,6 +1887,19 @@ export class TPSUID7RB {
 export class TpsDate {
   private readonly internal: Date;
 
+  private getTpsComponents(): TPSComponents {
+    const parsed = TPS.parse(this.toTPS(DefaultCalendars.TPS));
+    if (!parsed) {
+      throw new Error("TpsDate: failed to derive TPS components");
+    }
+    return parsed;
+  }
+
+  private getTpsFullYear(): number {
+    const comp = this.getTpsComponents();
+    return (comp.millennium - 1) * 1000 + (comp.century - 1) * 100 + comp.year;
+  }
+
   constructor();
   constructor(value: string | number | Date | TpsDate);
   constructor(
@@ -2017,7 +2048,7 @@ export class TpsDate {
   }
 
   toString(): string {
-    return this.internal.toString();
+    return this.toTPS(DefaultCalendars.TPS);
   }
 
   toISOString(): string {
@@ -2033,59 +2064,59 @@ export class TpsDate {
   }
 
   getFullYear(): number {
-    return this.internal.getFullYear();
+    return this.getTpsFullYear();
   }
 
   getUTCFullYear(): number {
-    return this.internal.getUTCFullYear();
+    return this.getTpsFullYear();
   }
 
   getMonth(): number {
-    return this.internal.getMonth();
+    return this.getTpsComponents().month - 1;
   }
 
   getUTCMonth(): number {
-    return this.internal.getUTCMonth();
+    return this.getTpsComponents().month - 1;
   }
 
   getDate(): number {
-    return this.internal.getDate();
+    return this.getTpsComponents().day;
   }
 
   getUTCDate(): number {
-    return this.internal.getUTCDate();
+    return this.getTpsComponents().day;
   }
 
   getHours(): number {
-    return this.internal.getHours();
+    return this.getTpsComponents().hour;
   }
 
   getUTCHours(): number {
-    return this.internal.getUTCHours();
+    return this.getTpsComponents().hour;
   }
 
   getMinutes(): number {
-    return this.internal.getMinutes();
+    return this.getTpsComponents().minute;
   }
 
   getUTCMinutes(): number {
-    return this.internal.getUTCMinutes();
+    return this.getTpsComponents().minute;
   }
 
   getSeconds(): number {
-    return this.internal.getSeconds();
+    return this.getTpsComponents().second;
   }
 
   getUTCSeconds(): number {
-    return this.internal.getUTCSeconds();
+    return this.getTpsComponents().second;
   }
 
   getMilliseconds(): number {
-    return this.internal.getMilliseconds();
+    return this.getTpsComponents().millisecond;
   }
 
   getUTCMilliseconds(): number {
-    return this.internal.getUTCMilliseconds();
+    return this.getTpsComponents().millisecond;
   }
 
   [Symbol.toPrimitive](hint: string): string | number {

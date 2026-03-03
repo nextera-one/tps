@@ -61,6 +61,8 @@ export interface TPSComponents {
     room?: string;
     /** Logical area within building */
     zone?: string;
+    /** Raw pre-@ space anchor (e.g. adm:city:SA:riyadh, node:api-1, net:ip4:203.0.113.10) */
+    spaceAnchor?: string;
     /** Technical missing data (e.g. server log without GPS) */
     isUnknownLocation?: boolean;
     /** Removed for legal/security reasons (e.g. GDPR) */
@@ -579,6 +581,8 @@ export declare class TPSUID7RB {
  */
 export declare class TpsDate {
     private readonly internal;
+    private getTpsComponents;
+    private getTpsFullYear;
     constructor();
     constructor(value: string | number | Date | TpsDate);
     constructor(year: number, monthIndex: number, day?: number, hours?: number, minutes?: number, seconds?: number, ms?: number);
