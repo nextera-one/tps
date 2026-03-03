@@ -591,6 +591,7 @@ export declare class TpsDate {
     static parse(input: string): number;
     static UTC(year: number, monthIndex: number, day?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number;
     static fromTPS(tps: string): TpsDate;
+    toGregorianDate(): Date;
     toDate(): Date;
     toTPS(calendar?: string, opts?: {
         order?: TimeOrder;

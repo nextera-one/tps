@@ -1488,8 +1488,11 @@ class TpsDate {
     static fromTPS(tps) {
         return new TpsDate(tps);
     }
-    toDate() {
+    toGregorianDate() {
         return new Date(this.internal.getTime());
+    }
+    toDate() {
+        return this.toGregorianDate();
     }
     toTPS(calendar = exports.DefaultCalendars.TPS, opts) {
         return TPS.fromDate(this.internal, calendar, opts);

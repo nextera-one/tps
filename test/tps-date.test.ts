@@ -38,6 +38,13 @@ test("new TpsDate(Date) clones source", () => {
   return d.getTime() === src.getTime();
 });
 
+test("toGregorianDate returns native Date clone", () => {
+  const ms = Date.UTC(2026, 0, 9, 14, 30, 25, 321);
+  const d = new TpsDate(ms);
+  const g = d.toGregorianDate();
+  return g instanceof Date && g.getTime() === ms;
+});
+
 test("new TpsDate(tps) parses TPS URI", () => {
   const tps = "tps://unknown@T:greg.m3.c1.y26.m01.d09.h14.m30.s25.m0";
   const d = new TpsDate(tps);

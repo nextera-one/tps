@@ -1998,8 +1998,12 @@ export class TpsDate {
     return new TpsDate(tps);
   }
 
-  toDate(): Date {
+  toGregorianDate(): Date {
     return new Date(this.internal.getTime());
+  }
+
+  toDate(): Date {
+    return this.toGregorianDate();
   }
 
   toTPS(
