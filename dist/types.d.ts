@@ -14,6 +14,7 @@ export declare const DefaultCalendars: {
     readonly JUL: "jul";
     readonly HOLO: "holo";
     readonly UNIX: "unix";
+    readonly CHIN: "chin";
 };
 /**
  * Specifies the direction of the time-component hierarchy when serializing or
@@ -42,11 +43,26 @@ export interface TPSComponents {
     h3Cell?: string;
     plusCode?: string;
     what3words?: string;
+    /** ISO 3166-1 alpha-2 country code, e.g. "JO"  →  P:cc=JO */
+    placeCountryCode?: string;
+    /** Full country name, e.g. "Jordan"             →  P:cn=Jordan */
+    placeCountryName?: string;
+    /** City IATA/ISO code, e.g. "AMM"               →  P:ci=AMM */
+    placeCityCode?: string;
+    /** Full city name, e.g. "Amman"                 →  P:ct=Amman */
+    placeCityName?: string;
+    /** IPv4 address (net:ip4:x or NIP4:x) */
+    ipv4?: string;
+    /** IPv6 address (net:ip6:x or NIP6:x) */
+    ipv6?: string;
+    /** Logical node / host name (node:api-1 or NODE:api-1) */
+    nodeName?: string;
     building?: string;
     floor?: string;
     room?: string;
+    door?: string;
     zone?: string;
-    /** Raw pre-@ space anchor */
+    /** Raw pre-@ space anchor (generic/legacy/planet/adm) */
     spaceAnchor?: string;
     isUnknownLocation?: boolean;
     isRedactedLocation?: boolean;
@@ -54,6 +70,8 @@ export interface TPSComponents {
     actor?: string;
     signature?: string;
     extensions?: Record<string, string>;
+    /** Structured context key-value pairs from the #C: fragment block */
+    context?: Record<string, string>;
     order?: TimeOrder;
 }
 /**

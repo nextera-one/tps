@@ -2,9 +2,17 @@
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
  * @packageDocumentation
- * @version 0.5.34
+ * @version 0.6.0
  * @license Apache-2.0
  * @copyright 2026 TPS Standards Working Group
+ *
+ * v0.5.35 Changes:
+ * - Added TPS.now(), TPS.diff(), TPS.add() convenience methods
+ * - Added Chinese Lunisolar (chin) calendar driver
+ * - Added DriverManager (driver registry separated from TPS class)
+ * - Added timezone utility (src/utils/timezone.ts) with IANA + offset support
+ * - TPS.toDate() now respects ;tz= extensions when present
+ * - ESM dual-mode exports + browser IIFE bundle
  *
  * v0.5.0 Changes:
  * - Added Actor anchor (A:) for provenance tracking
@@ -22,12 +30,17 @@ import { PersianDriver } from "./drivers/persian";
 import { HijriDriver } from "./drivers/hijri";
 import { JulianDriver } from "./drivers/julian";
 import { HoloceneDriver } from "./drivers/holocene";
+import { ChineseDriver } from "./drivers/chinese";
 
 export * from "./types";
 export * from "./uid";
 export * from "./date";
 export { Env } from "./utils/env";
+export { DriverManager } from "./driver-manager";
+export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone";
+import { DriverManager } from "./driver-manager";
 import { buildTimePart, parseTimeString } from "./utils/tps-string";
+import { localToUtc } from "./utils/timezone";
 
 import {
   CalendarDriver,
@@ -38,14 +51,15 @@ import {
 
 export class TPS {
   // --- PLUGIN REGISTRY ---
-  private static readonly drivers: Map<string, CalendarDriver> = new Map();
+  /** Shared DriverManager instance — use TPS.driverManager for direct access. */
+  static readonly driverManager = new DriverManager();
 
   /**
    * Registers a calendar driver plugin.
    * @param driver - The driver instance to register.
    */
   static registerDriver(driver: CalendarDriver): void {
-    this.drivers.set(driver.code, driver);
+    this.driverManager.register(driver);
   }
 
   /**
@@ -54,41 +68,44 @@ export class TPS {
    * @returns The driver or undefined.
    */
   static getDriver(code: string): CalendarDriver | undefined {
-    return this.drivers.get(code);
+    return this.driverManager.get(code);
   }
 
-  // --- REGEX ---
-  // Updated for v0.5.0: supports L: anchors, A: actor, ! signature, structural & geospatial anchors
-  // Tokens may appear in any order; actual semantic parsing happens in
-  // `parseTimeString()` so these patterns are intentionally permissive.
-  // regex simply ensures prefix, space, calendar, and token characters;
-  // token order is not enforced (parseTimeString handles semantics).
+  // --- REGEX (v0.6.0) ---
+  // The URI and time regexes are intentionally permissive in the location &
+  // extension sections — detailed semantic parsing happens in
+  // _mapGroupsToComponents() and the layer parsers below.
+  //
+  // Structure:
+  //   tps://[location]/A:[actor]@T:[cal].[tokens];[ext];...#C:[ctx];...
+  //
+  // The `;` separator is used consistently:
+  //   - between location layers (before @T:)
+  //   - between extensions (after T: tokens, before #)
+  //   - between context key=val pairs (after #C:)
   private static readonly REGEX_URI = new RegExp(
     "^tps://" +
-      // Location part (preserve named captures for space subfields)
-      "(?:L:)?(?<space>" +
-      "~|-|unknown|redacted|hidden|" +
-      "s2=(?<s2>[a-fA-F0-9]+)|" +
-      "h3=(?<h3>[a-fA-F0-9]+)|" +
-      "plus=(?<plus>[A-Z0-9+]+)|" +
-      "w3w=(?<w3w>[a-z]+\\.[a-z]+\\.[a-z]+)|" +
-      "bldg=(?<bldg>[\\w-]+)(?:\\.floor=(?<floor>[\\w-]+))?(?:\\.room=(?<room>[\\w-]+))?(?:\\.zone=(?<zone>[\\w-]+))?|" +
-      "(?<lat>-?\\d+(?:\\.\\d+)?),(?<lon>-?\\d+(?:\\.\\d+)?)(?:,(?<alt>-?\\d+(?:\\.\\d+)?)m?)?|" +
-      "(?<generic>[^@/?#]+)" +
-      ")" +
-      "(?:/A:(?<actor>[^/@]+))?" +
+      // Location: everything up to optional /A: actor and then @T:
+      "(?<location>[^@]+?)" +
+      // Optional actor overlay
+      "(?:/A:(?<actor>[^@]+))?" +
+      // Time section
       "@T:(?<calendar>[a-z]{3,4})" +
-      "(?:\\.(?:m-?\\d+|c\\d+|y\\d+|d\\d{1,2}|h\\d{1,2}|s\\d+(?:\\.\\d+)?))*" +
-      "(?:![^;?#]+)?" +
-      "(?:;(?<extensions>[^?#]+))?" +
-      "(?:\\?[^#]+)?" +
-      "(?:#.+)?$",
+      "(?<tokens>(?:\\.[a-z]-?[\\d.]+)*)" +
+      // Optional signature
+      "(?:!(?<signature>[^;#]+))?" +
+      // Optional extensions (;KEY:val;key=val;...)
+      "(?:;(?<extensions>[^#]+))?" +
+      // Optional context fragment (#C:key=val;...)
+      "(?:#C:(?<context>.+))?$",
   );
 
   private static readonly REGEX_TIME = new RegExp(
     "^T:(?<calendar>[a-z]{3,4})" +
-      "(?:\\.(?:m-?\\d+|c\\d+|y\\d+|d\\d{1,2}|h\\d{1,2}|s\\d+(?:\\.\\d+)?))*" +
-      "(?:![^;?#]+)?$",
+      "(?<tokens>(?:\\.[a-z]-?[\\d.]+)*)" +
+      "(?:!(?<signature>[^;#]+))?" +
+      "(?:;(?<extensions>[^#]+))?" +
+      "(?:#C:(?<context>.+))?$",
   );
 
   // --- CORE METHODS ---
@@ -105,6 +122,22 @@ export class TPS {
     // ── 1. Whitespace ────────────────────────────────────────────────────────
     let s = input.trim().replace(/\s+/g, "");
     if (!s) return s;
+
+    // ── 1.2 Compact scheme normalization (v0.6.0) ──────────────────────────
+    // TPS:...    → tps://...   (generic compact)
+    // NIP4:x     → tps://net:ip4:x   (IPv4 shorthand)
+    // NIP6:x     → tps://net:ip6:x   (IPv6 shorthand)
+    // NODE:x     → tps://node:x      (logical node shorthand)
+    if (/^TPS:/i.test(s) && !s.toLowerCase().startsWith("tps://")) {
+      // TPS:L:... or TPS:lat,lon... → tps://...
+      s = "tps://" + s.slice(4); // strip 'TPS:'
+    } else if (/^NIP4:/i.test(s)) {
+      s = "tps://net:ip4:" + s.slice(5);
+    } else if (/^NIP6:/i.test(s)) {
+      s = "tps://net:ip6:" + s.slice(5);
+    } else if (/^NODE:/i.test(s)) {
+      s = "tps://node:" + s.slice(5);
+    }
 
     // ── 1.5 Convert legacy "/T:" separators to the new canonical "@T:".
     // The input may contain "/T:" from older versions; we normalise early so
@@ -276,12 +309,33 @@ export class TPS {
     if (sigMatch && sigMatch.groups && sigMatch.groups.sig) {
       signature = sigMatch.groups.sig;
       timeOnly = input.split(/[!;?#]/)[0];
+    } else {
+      // Strip extension/query/fragment suffix so parseTimeString sees only tokens
+      timeOnly = input.split(/[;?#]/)[0];
     }
     const parsed = parseTimeString(timeOnly);
     if (!parsed) return null;
     const comp = parsed.components as TPSComponents;
     if (signature) comp.signature = signature;
     comp.order = parsed.order;
+
+    // Route through the same group mapper used by REGEX_URI for consistency
+    // (handles extensions ;KEY:val and context #C:key=val)
+    const syntheticGroups: Record<string, string> = {
+      calendar: match.groups.calendar ?? "",
+      signature: match.groups.signature ?? "",
+      extensions: match.groups.extensions ?? "",
+      context: match.groups.context ?? "",
+      location: "", // no location in time-only string
+      actor: "",
+    };
+    const mappedComp = this._mapGroupsToComponents(syntheticGroups);
+    // Merge temporal components from parseTimeString with mapped metadata
+    Object.assign(comp, {
+      signature: mappedComp.signature || comp.signature,
+      extensions: mappedComp.extensions || comp.extensions,
+      context: mappedComp.context,
+    });
     return comp;
   }
 
@@ -291,59 +345,87 @@ export class TPS {
    * @returns Full URI string (e.g. "tps://...").
    */
   static toURI(comp: TPSComponents): string {
-    // 1. Build Space Part (L: anchor)
-    let spacePart = "L:-"; // Default: unknown
+    // ── 1. Location layers (v0.6.0) ──────────────────────────────────────────
+    // Build an ordered list of location layer strings, then join with ";"
+    const layers: string[] = [];
 
-    if (comp.spaceAnchor) {
-      spacePart = comp.spaceAnchor;
-    } else if (comp.isHiddenLocation) {
-      spacePart = "L:~";
+    // Privacy shorthand takes priority
+    if (comp.isHiddenLocation) {
+      layers.push("L:~");
     } else if (comp.isRedactedLocation) {
-      spacePart = "L:redacted";
+      layers.push("L:redacted");
     } else if (comp.isUnknownLocation) {
-      spacePart = "L:-";
+      layers.push("L:-");
+    } else if (comp.spaceAnchor) {
+      // Generic / legacy anchor (adm:, planet:, etc.)
+      layers.push(comp.spaceAnchor);
+    } else if (comp.ipv4) {
+      layers.push(`net:ip4:${comp.ipv4}`);
+    } else if (comp.ipv6) {
+      layers.push(`net:ip6:${comp.ipv6}`);
+    } else if (comp.nodeName) {
+      layers.push(`node:${comp.nodeName}`);
     } else if (comp.s2Cell) {
-      spacePart = `L:s2=${comp.s2Cell}`;
+      layers.push(`S2:${comp.s2Cell}`);
     } else if (comp.h3Cell) {
-      spacePart = `L:h3=${comp.h3Cell}`;
-    } else if (comp.plusCode) {
-      spacePart = `L:plus=${comp.plusCode}`;
+      layers.push(`H3:${comp.h3Cell}`);
     } else if (comp.what3words) {
-      spacePart = `L:w3w=${comp.what3words}`;
+      layers.push(`3W:${comp.what3words}`);
+    } else if (comp.plusCode) {
+      layers.push(`plus:${comp.plusCode}`);
     } else if (comp.building) {
-      spacePart = `L:bldg=${comp.building}`;
-      if (comp.floor) spacePart += `.floor=${comp.floor}`;
-      if (comp.room) spacePart += `.room=${comp.room}`;
-      if (comp.zone) spacePart += `.zone=${comp.zone}`;
+      layers.push(`bldg:${comp.building}`);
+      if (comp.floor) layers.push(`floor:${comp.floor}`);
+      if (comp.room) layers.push(`room:${comp.room}`);
+      if (comp.door) layers.push(`door:${comp.door}`);
+      if (comp.zone) layers.push(`zone:${comp.zone}`);
     } else if (comp.latitude !== undefined && comp.longitude !== undefined) {
-      spacePart = `L:${comp.latitude},${comp.longitude}`;
-      if (comp.altitude !== undefined) {
-        spacePart += `,${comp.altitude}m`;
-      }
+      let gps = `L:${comp.latitude},${comp.longitude}`;
+      if (comp.altitude !== undefined) gps += `,${comp.altitude}m`;
+      layers.push(gps);
+    } else {
+      layers.push("L:-"); // unknown fallback
     }
 
-    // 2. Build Actor Part (A: anchor) - optional
-    let actorPart = "";
-    if (comp.actor) {
-      actorPart = `/A:${comp.actor}`;
+    // Place layer (P:) — appended after primary location
+    if (
+      comp.placeCountryCode || comp.placeCountryName ||
+      comp.placeCityCode   || comp.placeCityName
+    ) {
+      const pParts: string[] = [];
+      if (comp.placeCountryCode) pParts.push(`cc=${comp.placeCountryCode}`);
+      if (comp.placeCountryName) pParts.push(`cn=${comp.placeCountryName}`);
+      if (comp.placeCityCode) pParts.push(`ci=${comp.placeCityCode}`);
+      if (comp.placeCityName) pParts.push(`ct=${comp.placeCityName}`);
+      layers.push(`P:${pParts.join(",")}`);
     }
 
-    // 3. Build Time Part (handles order & signature)
+    const locationStr = layers.join(";");
+
+    // ── 2. Actor (/A:...) ─────────────────────────────────────────────────────
+    const actorPart = comp.actor ? `/A:${comp.actor}` : "";
+
+    // ── 3. Time (mandatory 9 tokens) ─────────────────────────────────────────
     const timePart = buildTimePart(comp);
 
-    // 5. Build Extensions
+    // ── 4. Extensions (;KEY:val;...) ─────────────────────────────────────────
     let extPart = "";
     if (comp.extensions && Object.keys(comp.extensions).length > 0) {
-      const extStrings = Object.entries(comp.extensions).map(
-        ([k, v]) => `${k}=${v}`,
-      );
-      extPart = `;${extStrings.join(".")}`;
+      const extStrings = Object.entries(comp.extensions).map(([k, v]) => {
+        // Emit as KEY:val (preferred v0.6.0 style)
+        return `${k.toUpperCase()}:${v}`;
+      });
+      extPart = `;${extStrings.join(";")}`;
     }
 
-    // timePart already begins with 'T:'.  The new canonical separator is '@'
-    // instead of '/', so we interpolate it accordingly.  Actor anchor (if
-    // present) still uses a leading slash.
-    return `tps://${spacePart}${actorPart}@${timePart}${extPart}`;
+    // ── 5. Context (#C:key=val;...) ──────────────────────────────────────────
+    let contextPart = "";
+    if (comp.context && Object.keys(comp.context).length > 0) {
+      const ctxStrings = Object.entries(comp.context).map(([k, v]) => `${k}=${v}`);
+      contextPart = `#C:${ctxStrings.join(";")}`;
+    }
+
+    return `tps://${locationStr}${actorPart}@${timePart}${extPart}${contextPart}`;
   }
 
   /**
@@ -361,7 +443,7 @@ export class TPS {
     opts?: { order?: TimeOrder },
   ): string {
     const normalizedCalendar = calendar.toLowerCase();
-    const driver = this.drivers.get(normalizedCalendar);
+    const driver = this.driverManager.get(normalizedCalendar);
     if (driver) {
       // when caller requested an explicit order we can bypass the driver's
       // `fromDate` helper and instead generate components ourselves so that
@@ -435,13 +517,24 @@ export class TPS {
 
     const cal = parsed.calendar || DefaultCalendars.TPS;
 
-    const driver = this.drivers.get(cal);
+    const driver = this.driverManager.get(cal);
     if (!driver) {
       console.error(`Calendar driver '${cal}' not registered.`);
       return null;
     }
 
-    return driver.getDateFromComponents(parsed);
+    const date = driver.getDateFromComponents(parsed);
+
+    // If the URI has a ;tz= extension, the calendar date was expressed in local
+    // time. Convert from local → UTC using the timezone utility.
+    const tz = parsed.extensions?.["tz"];
+    if (tz && date) {
+      const localMs = date.getTime();
+      const utcMs = localToUtc(localMs, tz);
+      return new Date(utcMs);
+    }
+
+    return date;
   }
 
   // --- DRIVER CONVENIENCE METHODS ---
@@ -469,7 +562,7 @@ export class TPS {
     dateString: string,
     format?: string,
   ): Partial<TPSComponents> | null {
-    const driver = this.drivers.get(calendar);
+    const driver = this.driverManager.get(calendar);
     if (!driver) {
       throw new Error(
         `Calendar driver '${calendar}' not found. Register a driver first.`,
@@ -551,12 +644,104 @@ export class TPS {
     components: Partial<TPSComponents>,
     format?: string,
   ): string {
-    const driver = this.drivers.get(calendar);
+    const driver = this.driverManager.get(calendar);
     if (!driver) {
       throw new Error(`Calendar driver '${calendar}' not found.`);
     }
     // format is guaranteed by the interface, so we can call it directly.
     return driver.format(components, format);
+  }
+
+  // --- CONVENIENCE METHODS ---
+
+  /**
+   * Returns a TPS time string for the current moment.
+   * Shorthand for `TPS.fromDate(new Date(), calendar, opts)`.
+   *
+   * @param calendar - Calendar code. Defaults to 'greg'.
+   * @param opts - Optional `order` (ASC/DESC) parameter.
+   * @returns TPS time string.
+   *
+   * @example
+   * ```ts
+   * TPS.now(); // "T:greg.m3.c1.y26.m3.d4.h06.m30.s00.m0"
+   * TPS.now('hij'); // "T:hij.y1447.m09.d05.h06.m30.s00"
+   * ```
+   */
+  static now(
+    calendar: string = DefaultCalendars.GREG,
+    opts?: { order?: TimeOrder },
+  ): string {
+    return this.fromDate(new Date(), calendar, opts) as string;
+  }
+
+  /**
+   * Returns the difference in milliseconds between two TPS strings.
+   * The result is `t2 - t1`; negative if t1 is after t2.
+   *
+   * @param t1 - First TPS string (subtracted from t2).
+   * @param t2 - Second TPS string.
+   * @returns Milliseconds between the two moments, or NaN on parse failure.
+   *
+   * @example
+   * ```ts
+   * const ms = TPS.diff('T:greg.m3.c1.y26.m1.d1.h0.m0.s0.m0',
+   *                       'T:greg.m3.c1.y26.m1.d2.h0.m0.s0.m0');
+   * // 86_400_000  (one day)
+   * ```
+   */
+  static diff(t1: string, t2: string): number {
+    const d1 = this.toDate(t1);
+    const d2 = this.toDate(t2);
+    if (!d1 || !d2) return NaN;
+    return d2.getTime() - d1.getTime();
+  }
+
+  /**
+   * Returns a new TPS string shifted by the given duration.
+   * The result is in the same calendar as the original string.
+   *
+   * @param tpsStr - Source TPS string.
+   * @param duration - Object with optional `days`, `hours`, `minutes`, `seconds`, `milliseconds`.
+   * @returns Shifted TPS string, or null if the input is invalid.
+   *
+   * @example
+   * ```ts
+   * const t = 'T:greg.m3.c1.y26.m1.d9.h14.m30.s25.m0';
+   * TPS.add(t, { days: 7 });   // one week later
+   * TPS.add(t, { hours: -2 }); // two hours earlier
+   * ```
+   */
+  static add(
+    tpsStr: string,
+    duration: {
+      days?: number;
+      hours?: number;
+      minutes?: number;
+      seconds?: number;
+      milliseconds?: number;
+    },
+  ): string | null {
+    const date = this.toDate(tpsStr);
+    if (!date) return null;
+
+    const parsed = this.parse(tpsStr);
+    const calendar = parsed?.calendar ?? DefaultCalendars.GREG;
+    const order = parsed?.order;
+
+    const deltaMs =
+      (duration.days ?? 0) * 86_400_000 +
+      (duration.hours ?? 0) * 3_600_000 +
+      (duration.minutes ?? 0) * 60_000 +
+      (duration.seconds ?? 0) * 1_000 +
+      (duration.milliseconds ?? 0);
+
+    const shifted = new Date(date.getTime() + deltaMs);
+    return this.fromDate(
+      shifted,
+      calendar,
+      order ? { order } : undefined,
+    ) as string;
   }
 
   // --- INTERNAL HELPERS ---
@@ -567,76 +752,146 @@ export class TPS {
     const components: any = {};
     components.calendar = g.calendar as string;
 
-    // Signature Mapping
+    // ── Signature ────────────────────────────────────────────────────────────
     if (g.signature) {
       components.signature = g.signature;
     }
 
-    // Actor Mapping
+    // ── Actor (/A:...) ────────────────────────────────────────────────────────
     if (g.actor) {
-      components.actor = g.actor;
+      components.actor = g.actor.trim();
     }
 
-    // Space Mapping
-    if (g.space) {
-      // Privacy markers
-      if (g.space === "unknown" || g.space === "-") {
-        components.isUnknownLocation = true;
-      } else if (g.space === "redacted") {
-        components.isRedactedLocation = true;
-      } else if (g.space === "hidden" || g.space === "~") {
-        components.isHiddenLocation = true;
-      }
-      // Geospatial cells
-      else if (g.s2) {
-        components.s2Cell = g.s2;
-      } else if (g.h3) {
-        components.h3Cell = g.h3;
-      } else if (g.plus) {
-        components.plusCode = g.plus;
-      } else if (g.w3w) {
-        components.what3words = g.w3w;
-      }
-      // Structural anchors
-      else if (g.bldg) {
-        components.building = g.bldg;
-        if (g.floor) components.floor = g.floor;
-        if (g.room) components.room = g.room;
-        if (g.zone) components.zone = g.zone;
-      }
-      // Generic pre-@ anchor (adm/node/net/planet/etc)
-      else if (g.generic) {
-        components.spaceAnchor = g.generic;
-      }
-      // GPS coordinates
-      else {
-        if (g.lat) components.latitude = parseFloat(g.lat);
-        if (g.lon) components.longitude = parseFloat(g.lon);
-        if (g.alt) components.altitude = parseFloat(g.alt);
-      }
+    // ── Location layers (v0.6.0: multi-layer, ;-separated) ───────────────────
+    if (g.location) {
+      this._parseLocationLayers(g.location, components);
     }
 
-    // Extensions Mapping
+    // ── Extensions (;KEY:val or ;key=val after T: tokens) ────────────────────
     if (g.extensions) {
-      const extObj: any = {};
-      const parts = g.extensions.split(".");
-      parts.forEach((p: string) => {
-        const eqIdx = p.indexOf("=");
-        if (eqIdx > 0) {
-          const key = p.substring(0, eqIdx);
-          const val = p.substring(eqIdx + 1);
-          if (key && val) extObj[key] = val;
-        } else {
-          // Legacy format: first char is key
-          const key = p.charAt(0);
-          const val = p.substring(1);
-          if (key && val) extObj[key] = val;
+      const extObj: Record<string, string> = {};
+      g.extensions.split(";").forEach((part: string) => {
+        part = part.trim();
+        if (!part) return;
+        const colonIdx = part.indexOf(":");
+        const eqIdx = part.indexOf("=");
+        if (colonIdx > 0 && (eqIdx < 0 || colonIdx < eqIdx)) {
+          // KEY:val form (e.g. TZ:+03:00)
+          const key = part.substring(0, colonIdx).toLowerCase();
+          const val = part.substring(colonIdx + 1);
+          if (key && val !== undefined) extObj[key] = val;
+        } else if (eqIdx > 0) {
+          // key=val form (e.g. tz=+03:00)
+          const key = part.substring(0, eqIdx).toLowerCase();
+          const val = part.substring(eqIdx + 1);
+          if (key && val !== undefined) extObj[key] = val;
         }
       });
-      components.extensions = extObj;
+      if (Object.keys(extObj).length > 0) components.extensions = extObj;
+    }
+
+    // ── Context (#C:key=val;key=val) ─────────────────────────────────────────
+    if (g.context) {
+      const ctx: Record<string, string> = {};
+      g.context.split(";").forEach((part: string) => {
+        part = part.trim();
+        if (!part) return;
+        const eqIdx = part.indexOf("=");
+        if (eqIdx > 0) {
+          ctx[part.substring(0, eqIdx)] = part.substring(eqIdx + 1);
+        }
+      });
+      if (Object.keys(ctx).length > 0) components.context = ctx;
     }
 
     return components as TPSComponents;
+  }
+
+  /**
+   * Parses a multi-layer location string (before @T:) into component fields.
+   * Layers are `;`-separated. Each layer is identified by its prefix token.
+   *
+   * Supported layers:
+   *   L:lat,lon[,altm]         — GPS
+   *   L:~|L:-|L:redacted       — Privacy markers
+   *   P:cc=JO,ci=AMM,...       — Place (country/city codes and names)
+   *   S2:token                 — S2 cell
+   *   H3:token                 — H3 cell
+   *   3W:word.word.word        — What3Words
+   *   plus:token               — Plus Code
+   *   net:ip4:x.x.x.x          — IPv4
+   *   net:ip6:x::x             — IPv6
+   *   node:name                — Logical node/host
+   *   bldg:name                — Building
+   *   floor:x                  — Floor
+   *   room:x                   — Room
+   *   door:x                   — Door
+   *   zone:x                   — Zone
+   */
+  private static _parseLocationLayers(location: string, components: any): void {
+    const layers = location.trim().split(";");
+
+    for (const layer of layers) {
+      const l = layer.trim();
+      if (!l) continue;
+
+      // Privacy shorthand
+      if (l === "L:~" || l === "L:hidden") { components.isHiddenLocation = true; continue; }
+      if (l === "L:-" || l === "L:unknown") { components.isUnknownLocation = true; continue; }
+      if (l === "L:redacted") { components.isRedactedLocation = true; continue; }
+
+      // P: Place layer — P:cc=JO,ci=AMM,cn=Jordan,ct=Amman
+      if (l.startsWith("P:")) {
+        l.slice(2).split(",").forEach((pair: string) => {
+          const eq = pair.indexOf("=");
+          if (eq < 1) return;
+          const k = pair.substring(0, eq).toLowerCase();
+          const v = pair.substring(eq + 1);
+          if (k === "cc") components.placeCountryCode = v;
+          else if (k === "cn") components.placeCountryName = v;
+          else if (k === "ci") components.placeCityCode = v;
+          else if (k === "ct") components.placeCityName = v;
+        });
+        continue;
+      }
+
+      // GPS coordinates (L:lat,lon[,alt])
+      if (l.startsWith("L:")) {
+        const coords = l.slice(2);
+        const m = coords.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(-?\d+(?:\.\d+)?)m?)?$/);
+        if (m) {
+          components.latitude = parseFloat(m[1]);
+          components.longitude = parseFloat(m[2]);
+          if (m[3]) components.altitude = parseFloat(m[3]);
+        }
+        continue;
+      }
+
+      // Geospatial cells
+      if (/^S2:/i.test(l)) { components.s2Cell = l.slice(3); continue; }
+      if (/^H3:/i.test(l)) { components.h3Cell = l.slice(3); continue; }
+      if (/^3W:/i.test(l)) { components.what3words = l.slice(3); continue; }
+      if (/^plus:/i.test(l)) { components.plusCode = l.slice(5); continue; }
+
+      // Network
+      if (/^net:ip4:/i.test(l)) { components.ipv4 = l.slice(8); continue; }
+      if (/^net:ip6:/i.test(l)) { components.ipv6 = l.slice(8); continue; }
+      if (/^node:/i.test(l)) { components.nodeName = l.slice(5); continue; }
+
+      // Structural
+      if (/^bldg:/i.test(l)) { components.building = l.slice(5); continue; }
+      if (/^floor:/i.test(l)) { components.floor = l.slice(6); continue; }
+      if (/^room:/i.test(l)) { components.room = l.slice(5); continue; }
+      if (/^door:/i.test(l)) { components.door = l.slice(5); continue; }
+      if (/^zone:/i.test(l)) { components.zone = l.slice(5); continue; }
+
+      // Fallback: generic space anchor (adm:, planet:, legacy strings)
+      if (l) {
+        components.spaceAnchor = components.spaceAnchor
+          ? components.spaceAnchor + ";" + l
+          : l;
+      }
+    }
   }
 }
 
@@ -649,6 +904,7 @@ TPS.registerDriver(new PersianDriver());
 TPS.registerDriver(new HijriDriver());
 TPS.registerDriver(new JulianDriver());
 TPS.registerDriver(new HoloceneDriver());
+TPS.registerDriver(new ChineseDriver());
 
 /**
  * `TpsDate` is a Date-like wrapper with native TPS conversion helpers.

@@ -15,6 +15,7 @@ export const DefaultCalendars = {
   JUL: "jul",
   HOLO: "holo",
   UNIX: "unix",
+  CHIN: "chin",
 } as const;
 
 /**
@@ -53,13 +54,32 @@ export interface TPSComponents {
   plusCode?: string;
   what3words?: string;
 
+  // --- SPATIAL: Place layer (P:cc=JO,ci=AMM,...) ---
+  /** ISO 3166-1 alpha-2 country code, e.g. "JO"  →  P:cc=JO */
+  placeCountryCode?: string;
+  /** Full country name, e.g. "Jordan"             →  P:cn=Jordan */
+  placeCountryName?: string;
+  /** City IATA/ISO code, e.g. "AMM"               →  P:ci=AMM */
+  placeCityCode?: string;
+  /** Full city name, e.g. "Amman"                 →  P:ct=Amman */
+  placeCityName?: string;
+
+  // --- SPATIAL: Network / Digital Location ---
+  /** IPv4 address (net:ip4:x or NIP4:x) */
+  ipv4?: string;
+  /** IPv6 address (net:ip6:x or NIP6:x) */
+  ipv6?: string;
+  /** Logical node / host name (node:api-1 or NODE:api-1) */
+  nodeName?: string;
+
   // --- SPATIAL: Structural Anchors ---
   building?: string;
   floor?: string;
   room?: string;
+  door?: string;
   zone?: string;
 
-  /** Raw pre-@ space anchor */
+  /** Raw pre-@ space anchor (generic/legacy/planet/adm) */
   spaceAnchor?: string;
 
   // --- SPATIAL: Privacy Markers ---
@@ -71,8 +91,12 @@ export interface TPSComponents {
   actor?: string;
   signature?: string;
 
-  // --- CONTEXT ---
+  // --- EXTENSIONS (;KEY:val or ;key=val after T: tokens, before #) ---
   extensions?: Record<string, string>;
+
+  // --- CONTEXT (#C:key=val;key=val in fragment) ---
+  /** Structured context key-value pairs from the #C: fragment block */
+  context?: Record<string, string>;
 
   order?: TimeOrder;
 }

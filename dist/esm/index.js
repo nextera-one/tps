@@ -1,4 +1,3 @@
-"use strict";
 /**
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
@@ -21,48 +20,27 @@
  * - Added structural anchors (bldg, floor, room, zone)
  * - Added geospatial cell systems (S2, H3, Plus Code, what3words)
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TPS = exports.getOffsetString = exports.localToUtc = exports.utcToLocal = exports.DriverManager = exports.Env = void 0;
 // built-in drivers are registered automatically; importing them here
 // ensures they are included when the library bundler/tree-shaker runs.
-const gregorian_1 = require("./drivers/gregorian");
-const unix_1 = require("./drivers/unix");
-const tps_1 = require("./drivers/tps");
-const persian_1 = require("./drivers/persian");
-const hijri_1 = require("./drivers/hijri");
-const julian_1 = require("./drivers/julian");
-const holocene_1 = require("./drivers/holocene");
-const chinese_1 = require("./drivers/chinese");
-__exportStar(require("./types"), exports);
-__exportStar(require("./uid"), exports);
-__exportStar(require("./date"), exports);
-var env_1 = require("./utils/env");
-Object.defineProperty(exports, "Env", { enumerable: true, get: function () { return env_1.Env; } });
-var driver_manager_1 = require("./driver-manager");
-Object.defineProperty(exports, "DriverManager", { enumerable: true, get: function () { return driver_manager_1.DriverManager; } });
-var timezone_1 = require("./utils/timezone");
-Object.defineProperty(exports, "utcToLocal", { enumerable: true, get: function () { return timezone_1.utcToLocal; } });
-Object.defineProperty(exports, "localToUtc", { enumerable: true, get: function () { return timezone_1.localToUtc; } });
-Object.defineProperty(exports, "getOffsetString", { enumerable: true, get: function () { return timezone_1.getOffsetString; } });
-const driver_manager_2 = require("./driver-manager");
-const tps_string_1 = require("./utils/tps-string");
-const timezone_2 = require("./utils/timezone");
-const types_1 = require("./types");
-class TPS {
+import { GregorianDriver } from "./drivers/gregorian";
+import { UnixDriver } from "./drivers/unix";
+import { TpsDriver } from "./drivers/tps";
+import { PersianDriver } from "./drivers/persian";
+import { HijriDriver } from "./drivers/hijri";
+import { JulianDriver } from "./drivers/julian";
+import { HoloceneDriver } from "./drivers/holocene";
+import { ChineseDriver } from "./drivers/chinese";
+export * from "./types";
+export * from "./uid";
+export * from "./date";
+export { Env } from "./utils/env";
+export { DriverManager } from "./driver-manager";
+export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone";
+import { DriverManager } from "./driver-manager";
+import { buildTimePart, parseTimeString } from "./utils/tps-string";
+import { localToUtc } from "./utils/timezone";
+import { DefaultCalendars, } from "./types";
+export class TPS {
     /**
      * Registers a calendar driver plugin.
      * @param driver - The driver instance to register.
@@ -242,7 +220,7 @@ class TPS {
                 timeStr = timeStr.split(/[!;?#]/)[0];
             }
             if (timeStr) {
-                const parsed = (0, tps_string_1.parseTimeString)(timeStr);
+                const parsed = parseTimeString(timeStr);
                 if (!parsed)
                     return null;
                 Object.assign(comp, parsed.components);
@@ -269,7 +247,7 @@ class TPS {
             // Strip extension/query/fragment suffix so parseTimeString sees only tokens
             timeOnly = input.split(/[;?#]/)[0];
         }
-        const parsed = (0, tps_string_1.parseTimeString)(timeOnly);
+        const parsed = parseTimeString(timeOnly);
         if (!parsed)
             return null;
         const comp = parsed.components;
@@ -377,7 +355,7 @@ class TPS {
         // ── 2. Actor (/A:...) ─────────────────────────────────────────────────────
         const actorPart = comp.actor ? `/A:${comp.actor}` : "";
         // ── 3. Time (mandatory 9 tokens) ─────────────────────────────────────────
-        const timePart = (0, tps_string_1.buildTimePart)(comp);
+        const timePart = buildTimePart(comp);
         // ── 4. Extensions (;KEY:val;...) ─────────────────────────────────────────
         let extPart = "";
         if (comp.extensions && Object.keys(comp.extensions).length > 0) {
@@ -404,7 +382,7 @@ class TPS {
      *   supported key is `order` which may be `'ascending'` or `'descending'`.
      * @returns Canonical string (e.g., "T:tps.m3.c1.y26...").
      */
-    static fromDate(date = new Date(), calendar = types_1.DefaultCalendars.TPS, opts) {
+    static fromDate(date = new Date(), calendar = DefaultCalendars.TPS, opts) {
         const normalizedCalendar = calendar.toLowerCase();
         const driver = this.driverManager.get(normalizedCalendar);
         if (driver) {
@@ -416,21 +394,21 @@ class TPS {
                 const comp = driver.getComponentsFromDate(date);
                 comp.calendar = normalizedCalendar;
                 comp.order = opts.order;
-                return (0, tps_string_1.buildTimePart)(comp);
+                return buildTimePart(comp);
             }
             return driver.getFromDate(date);
         }
         // Fallback for old built-in calendars (shouldn't happen once drivers are
         // registered, but kept for backwards compatibility).
         const comp = { calendar: normalizedCalendar };
-        if (normalizedCalendar === types_1.DefaultCalendars.UNIX) {
+        if (normalizedCalendar === DefaultCalendars.UNIX) {
             const s = (date.getTime() / 1000).toFixed(3);
             comp.unixSeconds = parseFloat(s);
             if (opts?.order)
                 comp.order = opts.order;
-            return (0, tps_string_1.buildTimePart)(comp);
+            return buildTimePart(comp);
         }
-        if (normalizedCalendar === types_1.DefaultCalendars.GREG) {
+        if (normalizedCalendar === DefaultCalendars.GREG) {
             const fullYear = date.getUTCFullYear();
             comp.millennium = Math.floor(fullYear / 1000) + 1;
             comp.century = Math.floor((fullYear % 1000) / 100) + 1;
@@ -443,7 +421,7 @@ class TPS {
             comp.millisecond = date.getUTCMilliseconds();
             if (opts?.order)
                 comp.order = opts.order;
-            return (0, tps_string_1.buildTimePart)(comp);
+            return buildTimePart(comp);
         }
         throw new Error(`Calendar driver '${normalizedCalendar}' not implemented. Register a driver.`);
     }
@@ -472,7 +450,7 @@ class TPS {
         const parsed = this.parse(tpsString);
         if (!parsed)
             return null;
-        const cal = parsed.calendar || types_1.DefaultCalendars.TPS;
+        const cal = parsed.calendar || DefaultCalendars.TPS;
         const driver = this.driverManager.get(cal);
         if (!driver) {
             console.error(`Calendar driver '${cal}' not registered.`);
@@ -484,7 +462,7 @@ class TPS {
         const tz = parsed.extensions?.["tz"];
         if (tz && date) {
             const localMs = date.getTime();
-            const utcMs = (0, timezone_2.localToUtc)(localMs, tz);
+            const utcMs = localToUtc(localMs, tz);
             return new Date(utcMs);
         }
         return date;
@@ -592,7 +570,7 @@ class TPS {
      * TPS.now('hij'); // "T:hij.y1447.m09.d05.h06.m30.s00"
      * ```
      */
-    static now(calendar = types_1.DefaultCalendars.GREG, opts) {
+    static now(calendar = DefaultCalendars.GREG, opts) {
         return this.fromDate(new Date(), calendar, opts);
     }
     /**
@@ -637,7 +615,7 @@ class TPS {
         if (!date)
             return null;
         const parsed = this.parse(tpsStr);
-        const calendar = parsed?.calendar ?? types_1.DefaultCalendars.GREG;
+        const calendar = parsed?.calendar ?? DefaultCalendars.GREG;
         const order = parsed?.order;
         const deltaMs = (duration.days ?? 0) * 86400000 +
             (duration.hours ?? 0) * 3600000 +
@@ -838,10 +816,9 @@ class TPS {
         }
     }
 }
-exports.TPS = TPS;
 // --- PLUGIN REGISTRY ---
 /** Shared DriverManager instance — use TPS.driverManager for direct access. */
-TPS.driverManager = new driver_manager_2.DriverManager();
+TPS.driverManager = new DriverManager();
 // --- REGEX (v0.6.0) ---
 // The URI and time regexes are intentionally permissive in the location &
 // extension sections — detailed semantic parsing happens in
@@ -875,14 +852,14 @@ TPS.REGEX_TIME = new RegExp("^T:(?<calendar>[a-z]{3,4})" +
     "(?:#C:(?<context>.+))?$");
 // register built-in drivers and set default
 // (tps and gregorian provide canonical conversions before unix)
-TPS.registerDriver(new tps_1.TpsDriver());
-TPS.registerDriver(new gregorian_1.GregorianDriver());
-TPS.registerDriver(new unix_1.UnixDriver());
-TPS.registerDriver(new persian_1.PersianDriver());
-TPS.registerDriver(new hijri_1.HijriDriver());
-TPS.registerDriver(new julian_1.JulianDriver());
-TPS.registerDriver(new holocene_1.HoloceneDriver());
-TPS.registerDriver(new chinese_1.ChineseDriver());
+TPS.registerDriver(new TpsDriver());
+TPS.registerDriver(new GregorianDriver());
+TPS.registerDriver(new UnixDriver());
+TPS.registerDriver(new PersianDriver());
+TPS.registerDriver(new HijriDriver());
+TPS.registerDriver(new JulianDriver());
+TPS.registerDriver(new HoloceneDriver());
+TPS.registerDriver(new ChineseDriver());
 /**
  * `TpsDate` is a Date-like wrapper with native TPS conversion helpers.
  *

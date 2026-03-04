@@ -1,6 +1,6 @@
 {
   "name": "@nextera.one/tps-standard",
-  "version": "0.5.34",
+  "version": "0.6.0",
   "description": "The Universal Protocol for Space-Time Coordinates. A standard URI scheme (tps://) combining WGS84 spatial data with hierarchical, multi-calendar temporal coordinates. Includes TPS-UID: time-first, reversible event identifiers.",
   "keywords": [
     "tps",
@@ -19,6 +19,7 @@
     "holocene",
     "human-era",
     "unix",
+    "chinese",
     "geolocation"
   ],
   "homepage": "https://tps-standard.org",
@@ -33,18 +34,32 @@
   "author": "Mohammed Ayesh",
   "types": "dist/index.d.ts",
   "main": "dist/index.js",
+  "module": "dist/esm/index.js",
+  "browser": "dist/tps.min.js",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.esm.json",
+    "bundle": "rollup -c rollup.config.js",
     "prepublishOnly": "npm run build",
     "tests": "for f in test/*.ts; do npx ts-node \"$f\"; done"
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "devDependencies": {
-    "typescript": "^5.3.3",
+    "@rollup/plugin-node-resolve": "^15.3.1",
+    "@rollup/plugin-typescript": "^11.1.6",
     "@types/node": "^20.10.6",
-    "ts-node": "^10.9.2"
+    "rollup": "^4.59.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   }
 }

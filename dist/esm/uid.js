@@ -1,13 +1,10 @@
-"use strict";
 /**
  * TPS-UID v1 — Temporal Positioning System Identifier (Binary Reversible)
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TPSUID7RB = void 0;
-const index_1 = require("./index");
-const types_1 = require("./types");
-const env_1 = require("./utils/env");
-class TPSUID7RB {
+import { TPS } from "./index";
+import { DefaultCalendars } from "./types";
+import { Env } from "./utils/env";
+export class TPSUID7RB {
     static encodeBinary(tps, opts = {}) {
         const compress = opts.compress ?? false;
         const epochMs = opts.epochMs ?? this.epochMsFromTPSString(tps);
@@ -15,9 +12,9 @@ class TPSUID7RB {
             throw new Error("TPSUID7RB: Invalid epochMs (must be 48-bit non-negative integer)");
         }
         const flags = compress ? 0x01 : 0x00;
-        const nonceBuf = env_1.Env.randomBytes(4);
+        const nonceBuf = Env.randomBytes(4);
         const tpsUtf8 = new TextEncoder().encode(tps);
-        const payload = compress ? env_1.Env.deflate(tpsUtf8) : tpsUtf8;
+        const payload = compress ? Env.deflate(tpsUtf8) : tpsUtf8;
         const lenVar = this.uvarintEncode(payload.length);
         const out = new Uint8Array(4 + 1 + 1 + 6 + 4 + lenVar.length + payload.length);
         let offset = 0;
@@ -59,7 +56,7 @@ class TPSUID7RB {
         if (offset + tpsLen > bytes.length)
             throw new Error("TPSUID7RB: length overflow");
         const payload = bytes.slice(offset, offset + tpsLen);
-        const tpsUtf8 = compressed ? env_1.Env.inflate(payload) : payload;
+        const tpsUtf8 = compressed ? Env.inflate(payload) : payload;
         const tps = new TextDecoder().decode(tpsUtf8);
         return { version: "tpsuid7rb", epochMs, compressed, nonce, tps };
     }
@@ -78,7 +75,7 @@ class TPSUID7RB {
     }
     static generate(opts) {
         const now = new Date();
-        const time = index_1.TPS.fromDate(now, types_1.DefaultCalendars.TPS, {
+        const time = TPS.fromDate(now, DefaultCalendars.TPS, {
             order: opts?.order,
         });
         let space = "unknown";
@@ -100,9 +97,9 @@ class TPSUID7RB {
             throw new Error("TPSUID7RB: Invalid epochMs");
         }
         const flags = (compress ? 0x01 : 0x00) | 0x02; // Set SEAL bit
-        const nonceBuf = env_1.Env.randomBytes(4);
+        const nonceBuf = Env.randomBytes(4);
         const tpsUtf8 = new TextEncoder().encode(tps);
-        const payload = compress ? env_1.Env.deflate(tpsUtf8) : tpsUtf8;
+        const payload = compress ? Env.deflate(tpsUtf8) : tpsUtf8;
         const lenVar = this.uvarintEncode(payload.length);
         const contentLen = 4 + 1 + 1 + 6 + 4 + lenVar.length + payload.length;
         const content = new Uint8Array(contentLen);
@@ -118,7 +115,7 @@ class TPSUID7RB {
         content.set(lenVar, offset);
         offset += lenVar.length;
         content.set(payload, offset);
-        const signature = env_1.Env.signEd25519(content, privateKey);
+        const signature = Env.signEd25519(content, privateKey);
         const final = new Uint8Array(contentLen + 1 + signature.length);
         final.set(content, 0);
         final.set([0x01], contentLen); // Ed25519 type
@@ -135,17 +132,17 @@ class TPSUID7RB {
         const payloadEnd = offset + bytesRead + tpsLen;
         const content = sealedBytes.slice(0, payloadEnd);
         const signature = sealedBytes.slice(payloadEnd + 1);
-        if (!env_1.Env.verifyEd25519(content, signature, publicKey)) {
+        if (!Env.verifyEd25519(content, signature, publicKey)) {
             throw new Error("TPSUID7RB: verification failed");
         }
         return this.decodeBinary(content);
     }
     static epochMsFromTPSString(tps) {
-        const date = index_1.TPS.toDate(tps);
+        const date = TPS.toDate(tps);
         if (date)
             return date.getTime();
         const stripped = tps.replace(/;[^?#]*/, "").replace(/[?#].*$/, "");
-        const retryDate = index_1.TPS.toDate(stripped);
+        const retryDate = TPS.toDate(stripped);
         if (!retryDate)
             throw new Error("TPS: unable to parse date for epoch");
         return retryDate.getTime();
@@ -217,7 +214,6 @@ class TPSUID7RB {
         return new Uint8Array(Array.from(binary).map((c) => c.charCodeAt(0)));
     }
 }
-exports.TPSUID7RB = TPSUID7RB;
 TPSUID7RB.MAGIC = new Uint8Array([0x54, 0x50, 0x55, 0x37]);
 TPSUID7RB.VER = 0x01;
 TPSUID7RB.PREFIX = "tpsuid7rb_";

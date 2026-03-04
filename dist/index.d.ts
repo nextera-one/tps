@@ -2,9 +2,17 @@
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
  * @packageDocumentation
- * @version 0.5.34
+ * @version 0.6.0
  * @license Apache-2.0
  * @copyright 2026 TPS Standards Working Group
+ *
+ * v0.5.35 Changes:
+ * - Added TPS.now(), TPS.diff(), TPS.add() convenience methods
+ * - Added Chinese Lunisolar (chin) calendar driver
+ * - Added DriverManager (driver registry separated from TPS class)
+ * - Added timezone utility (src/utils/timezone.ts) with IANA + offset support
+ * - TPS.toDate() now respects ;tz= extensions when present
+ * - ESM dual-mode exports + browser IIFE bundle
  *
  * v0.5.0 Changes:
  * - Added Actor anchor (A:) for provenance tracking
@@ -16,9 +24,13 @@ export * from "./types";
 export * from "./uid";
 export * from "./date";
 export { Env } from "./utils/env";
+export { DriverManager } from "./driver-manager";
+export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone";
+import { DriverManager } from "./driver-manager";
 import { CalendarDriver, TPSComponents, TimeOrder } from "./types";
 export declare class TPS {
-    private static readonly drivers;
+    /** Shared DriverManager instance — use TPS.driverManager for direct access. */
+    static readonly driverManager: DriverManager;
     /**
      * Registers a calendar driver plugin.
      * @param driver - The driver instance to register.
@@ -144,7 +156,84 @@ export declare class TPS {
      * ```
      */
     static formatCalendarDate(calendar: string, components: Partial<TPSComponents>, format?: string): string;
+    /**
+     * Returns a TPS time string for the current moment.
+     * Shorthand for `TPS.fromDate(new Date(), calendar, opts)`.
+     *
+     * @param calendar - Calendar code. Defaults to 'greg'.
+     * @param opts - Optional `order` (ASC/DESC) parameter.
+     * @returns TPS time string.
+     *
+     * @example
+     * ```ts
+     * TPS.now(); // "T:greg.m3.c1.y26.m3.d4.h06.m30.s00.m0"
+     * TPS.now('hij'); // "T:hij.y1447.m09.d05.h06.m30.s00"
+     * ```
+     */
+    static now(calendar?: string, opts?: {
+        order?: TimeOrder;
+    }): string;
+    /**
+     * Returns the difference in milliseconds between two TPS strings.
+     * The result is `t2 - t1`; negative if t1 is after t2.
+     *
+     * @param t1 - First TPS string (subtracted from t2).
+     * @param t2 - Second TPS string.
+     * @returns Milliseconds between the two moments, or NaN on parse failure.
+     *
+     * @example
+     * ```ts
+     * const ms = TPS.diff('T:greg.m3.c1.y26.m1.d1.h0.m0.s0.m0',
+     *                       'T:greg.m3.c1.y26.m1.d2.h0.m0.s0.m0');
+     * // 86_400_000  (one day)
+     * ```
+     */
+    static diff(t1: string, t2: string): number;
+    /**
+     * Returns a new TPS string shifted by the given duration.
+     * The result is in the same calendar as the original string.
+     *
+     * @param tpsStr - Source TPS string.
+     * @param duration - Object with optional `days`, `hours`, `minutes`, `seconds`, `milliseconds`.
+     * @returns Shifted TPS string, or null if the input is invalid.
+     *
+     * @example
+     * ```ts
+     * const t = 'T:greg.m3.c1.y26.m1.d9.h14.m30.s25.m0';
+     * TPS.add(t, { days: 7 });   // one week later
+     * TPS.add(t, { hours: -2 }); // two hours earlier
+     * ```
+     */
+    static add(tpsStr: string, duration: {
+        days?: number;
+        hours?: number;
+        minutes?: number;
+        seconds?: number;
+        milliseconds?: number;
+    }): string | null;
     private static _mapGroupsToComponents;
+    /**
+     * Parses a multi-layer location string (before @T:) into component fields.
+     * Layers are `;`-separated. Each layer is identified by its prefix token.
+     *
+     * Supported layers:
+     *   L:lat,lon[,altm]         — GPS
+     *   L:~|L:-|L:redacted       — Privacy markers
+     *   P:cc=JO,ci=AMM,...       — Place (country/city codes and names)
+     *   S2:token                 — S2 cell
+     *   H3:token                 — H3 cell
+     *   3W:word.word.word        — What3Words
+     *   plus:token               — Plus Code
+     *   net:ip4:x.x.x.x          — IPv4
+     *   net:ip6:x::x             — IPv6
+     *   node:name                — Logical node/host
+     *   bldg:name                — Building
+     *   floor:x                  — Floor
+     *   room:x                   — Room
+     *   door:x                   — Door
+     *   zone:x                   — Zone
+     */
+    private static _parseLocationLayers;
 }
 /**
  * `TpsDate` is a Date-like wrapper with native TPS conversion helpers.

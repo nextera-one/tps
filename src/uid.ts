@@ -2,9 +2,9 @@
  * TPS-UID v1 — Temporal Positioning System Identifier (Binary Reversible)
  */
 
-import { TPSComponents, DefaultCalendars, TimeOrder } from "./types";
-import { Env } from "./utils/env";
 import { TPS } from "./index";
+import { DefaultCalendars, TimeOrder } from "./types";
+import { Env } from "./utils/env";
 
 /**
  * Decoded result from TPSUID7RB binary format.
