@@ -3,7 +3,7 @@
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
  * @packageDocumentation
- * @version 0.5.0
+ * @version 0.5.2
  * @license Apache-2.0
  * @copyright 2026 TPS Standards Working Group
  *
@@ -20,6 +20,10 @@ exports.TpsDate = exports.TPSUID7RB = exports.TPS = exports.TimeOrder = exports.
 const gregorian_1 = require("./drivers/gregorian");
 const unix_1 = require("./drivers/unix");
 const tps_1 = require("./drivers/tps");
+const persian_1 = require("./drivers/persian");
+const hijri_1 = require("./drivers/hijri");
+const julian_1 = require("./drivers/julian");
+const holocene_1 = require("./drivers/holocene");
 // Calendar codes are plain strings to allow arbitrary user-defined
 // calendars.  The library still exports constants for the built-in values but
 // callers may also supply their own codes.
@@ -27,6 +31,7 @@ exports.DefaultCalendars = {
     TPS: "tps",
     GREG: "greg",
     HIJ: "hij",
+    PER: "per",
     JUL: "jul",
     HOLO: "holo",
     UNIX: "unix",
@@ -116,10 +121,8 @@ class TPS {
             return s;
         }
         // No tokens at all — fill every slot with 0 and return
-        // Use tps as the default calendar if none was specified
-        const resolvedCal = cal || exports.DefaultCalendars.TPS;
         if (!tokenStr) {
-            return `${beforeT}T:${resolvedCal}.m0.c0.y0.m0.d0.h0.m0.s0.m0${timeSuffix}`;
+            return `${beforeT}T:${cal}.m0.c0.y0.m0.d0.h0.m0.s0.m0${timeSuffix}`;
         }
         const tokens = tokenStr
             .split(".")
@@ -170,7 +173,7 @@ class TPS {
         const finalTokenStr = descSlots
             .map(([p, r]) => p + (byRank.get(r) ?? "0"))
             .join(".");
-        return `${beforeT}T:${resolvedCal}.${finalTokenStr}${timeSuffix}`;
+        return `${beforeT}T:${cal}.${finalTokenStr}${timeSuffix}`;
     }
     static validate(input) {
         const sanitized = this.sanitizeTimeInput(input);
@@ -808,6 +811,10 @@ TPS.REGEX_TIME = new RegExp("^T:(?<calendar>[a-z]{3,4})" +
 TPS.registerDriver(new tps_1.TpsDriver());
 TPS.registerDriver(new gregorian_1.GregorianDriver());
 TPS.registerDriver(new unix_1.UnixDriver());
+TPS.registerDriver(new persian_1.PersianDriver());
+TPS.registerDriver(new hijri_1.HijriDriver());
+TPS.registerDriver(new julian_1.JulianDriver());
+TPS.registerDriver(new holocene_1.HoloceneDriver());
 /**
  * TPS-UID v1 — Temporal Positioning System Identifier (Binary Reversible)
  *
@@ -1013,35 +1020,6 @@ class TPSUID7RB {
     /**
      * Generate a TPS string from a Date and optional location.
      */
-    // NOTE: this helper is primarily used by `generate()`; drivers and
-    // callers should prefer `TPS.fromDate()` when order or calendars matter.
-    static generateTPSString(date, opts) {
-        const fullYear = date.getUTCFullYear();
-        const comp = {
-            calendar: exports.DefaultCalendars.TPS,
-            millennium: Math.floor(fullYear / 1000) + 1,
-            century: Math.floor((fullYear % 1000) / 100) + 1,
-            year: fullYear % 100,
-            month: date.getUTCMonth() + 1,
-            day: date.getUTCDate(),
-            hour: date.getUTCHours(),
-            minute: date.getUTCMinutes(),
-            second: date.getUTCSeconds(),
-            millisecond: date.getUTCMilliseconds(),
-        };
-        if (opts?.order)
-            comp.order = opts.order;
-        // note: this method belongs to TPSUID7RB, but buildTimePart lives on TPS
-        const timePart = TPS.buildTimePart(comp);
-        let spacePart = "unknown";
-        if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
-            spacePart = `${opts.latitude},${opts.longitude}`;
-            if (opts.altitude !== undefined) {
-                spacePart += `,${opts.altitude}m`;
-            }
-        }
-        return `tps://${spacePart}@${timePart}`;
-    }
     /**
      * Parse epoch milliseconds from a TPS string.
      * Supports both URI format (tps://...) and time-only format (T:greg...)
@@ -1329,42 +1307,38 @@ class TPSUID7RB {
             try {
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
                 const crypto = require("crypto");
-                // Node's crypto.sign uses PEM or KeyObject, but for raw Ed25519 keys we might need 'crypto.sign(null, data, key)'
-                // or ensure key is properly formatted.
-                // For simplicity in Node 20+, crypto.sign(null, data, privateKey) works if key is KeyObject.
-                // If raw bytes: establish KeyObject.
-                let keyObj;
-                if (Buffer.isBuffer(privateKey) || privateKey instanceof Uint8Array) {
-                    // Assuming raw 64-byte private key (or 32-byte seed properly expanded by crypto)
-                    // Node < 16 is tricky with raw keys.
-                    // Let's assume standard Ed25519 standard implementation pattern logic:
-                    keyObj = crypto.createPrivateKey({
+                let key;
+                if (typeof privateKey === "string") {
+                    if (privateKey.includes("PRIVATE KEY")) {
+                        // PEM format — use directly
+                        key = privateKey;
+                    }
+                    else {
+                        // Hex-encoded DER/PKCS8
+                        key = crypto.createPrivateKey({
+                            key: Buffer.from(privateKey, "hex"),
+                            format: "der",
+                            type: "pkcs8",
+                        });
+                    }
+                }
+                else if (typeof privateKey === "object" &&
+                    privateKey !== null &&
+                    "asymmetricKeyType" in privateKey) {
+                    // Node.js KeyObject (e.g. from crypto.generateKeyPairSync)
+                    key = privateKey;
+                }
+                else {
+                    // Buffer or Uint8Array — assume DER/PKCS8 encoded
+                    key = crypto.createPrivateKey({
                         key: Buffer.from(privateKey),
-                        format: "der", // or 'pem' - strict.
+                        format: "der",
                         type: "pkcs8",
                     });
-                    // Actually, simpler: construct key object from raw bytes if possible?
-                    // Node's crypto is strict. Let's try the simplest:
-                    // If hex string provided, convert to buffer.
                 }
-                // Simpler fallback: If user passed a PEM string, great.
-                // If they passed raw bytes, we might need 'ed25519' key type.
-                // For this implementation, let's target Node's high-level sign/verify
-                // and assume the user provides a VALID key object or compatible format (PEM/DER).
-                // Handling RAW Ed25519 keys in Node requires specific 'crypto.createPrivateKey' with 'raw' format (Node 11.6+).
-                const key = typeof privateKey === "string" && !privateKey.includes("PRIVATE KEY")
-                    ? crypto.createPrivateKey({
-                        key: Buffer.from(privateKey, "hex"),
-                        format: "pem",
-                        type: "pkcs8",
-                    }) // Fallback guess
-                    : privateKey;
-                // Note: Raw Ed25519 key support in Node.js 'crypto' acts via 'generateKeyPair' or KeyObject.
-                // Direct raw signing is via crypto.sign(null, data, key).
                 return new Uint8Array(crypto.sign(null, data, key));
             }
             catch (e) {
-                // If standard crypto fails (e.g. key format issue), throw
                 throw new Error("TPSUID7RB: signing failed (check key format)");
             }
         }

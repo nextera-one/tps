@@ -1,4 +1,10 @@
-import { CalendarDriver, TPSComponents, TimeOrder, TPS, CalendarMetadata } from '../index';
+import {
+  CalendarDriver,
+  TPSComponents,
+  TimeOrder,
+  TPS,
+  CalendarMetadata,
+} from "../index";
 
 /**
  * Gregorian calendar driver.
@@ -8,7 +14,7 @@ import { CalendarDriver, TPSComponents, TimeOrder, TPS, CalendarMetadata } from 
  * exercise `parseDate`, `format`, `validate`, and `getMetadata`.
  */
 export class GregorianDriver implements CalendarDriver {
-  readonly code: string = 'greg';
+  readonly code: string = "greg";
 
   getComponentsFromDate(date: Date): Partial<TPSComponents> {
     const fullYear = date.getUTCFullYear();
@@ -27,9 +33,9 @@ export class GregorianDriver implements CalendarDriver {
   }
 
   getDateFromComponents(components: Partial<TPSComponents>): Date {
-    const m = components.millennium || 0;
-    const c = components.century || 1;
-    const y = components.year || 0;
+    const m = components.millennium ?? 0;
+    const c = components.century ?? 1;
+    const y = components.year ?? 0;
     const fullYear = (m - 1) * 1000 + (c - 1) * 100 + y;
 
     return new Date(
@@ -40,7 +46,8 @@ export class GregorianDriver implements CalendarDriver {
         components.hour || 0,
         components.minute || 0,
         Math.floor(components.second || 0),
-        components.millisecond ?? Math.round(((components.second || 0) % 1) * 1000),
+        components.millisecond ??
+          Math.round(((components.second || 0) % 1) * 1000),
       ),
     );
   }
@@ -57,9 +64,13 @@ export class GregorianDriver implements CalendarDriver {
     // Accept ISO-like formats: "YYYY-MM-DD" and optionally time portion
     const s = input.trim();
     // simple regex - not exhaustive
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?)?$/);
+    const m = s.match(
+      /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?)?$/,
+    );
     if (!m) {
-      throw new Error(`GregorianDriver.parseDate: unsupported format "${input}"`);
+      throw new Error(
+        `GregorianDriver.parseDate: unsupported format "${input}"`,
+      );
     }
     const year = parseInt(m[1], 10);
     const month = parseInt(m[2], 10);
@@ -67,7 +78,8 @@ export class GregorianDriver implements CalendarDriver {
     const hour = m[4] !== undefined ? parseInt(m[4], 10) : undefined;
     const minute = m[5] !== undefined ? parseInt(m[5], 10) : undefined;
     const second = m[6] !== undefined ? parseInt(m[6], 10) : undefined;
-    const millisecond = m[7] !== undefined ? parseInt((m[7] + '000').slice(0, 3), 10) : undefined;
+    const millisecond =
+      m[7] !== undefined ? parseInt((m[7] + "000").slice(0, 3), 10) : undefined;
 
     const comp: Partial<TPSComponents> = {
       calendar: this.code,
@@ -84,9 +96,18 @@ export class GregorianDriver implements CalendarDriver {
 
   format(components: Partial<TPSComponents>, format?: string): string {
     // For simplicity we ignore `format` and always produce ISO-ish string
-    const y = components.year !== undefined ? String(components.year).padStart(4, '0') : '0000';
-    const mo = components.month !== undefined ? String(components.month).padStart(2, '0') : '01';
-    const d = components.day !== undefined ? String(components.day).padStart(2, '0') : '01';
+    const y =
+      components.year !== undefined
+        ? String(components.year).padStart(4, "0")
+        : "0000";
+    const mo =
+      components.month !== undefined
+        ? String(components.month).padStart(2, "0")
+        : "01";
+    const d =
+      components.day !== undefined
+        ? String(components.day).padStart(2, "0")
+        : "01";
     let out = `${y}-${mo}-${d}`;
     if (
       components.hour !== undefined ||
@@ -94,23 +115,35 @@ export class GregorianDriver implements CalendarDriver {
       components.second !== undefined ||
       components.millisecond !== undefined
     ) {
-      const h = components.hour !== undefined ? String(components.hour).padStart(2, '0') : '00';
-      const mi = components.minute !== undefined ? String(components.minute).padStart(2, '0') : '00';
-      const s = components.second !== undefined ? String(Math.floor(components.second)).padStart(2, '0') : '00';
-      const ms = components.millisecond !== undefined ? String(components.millisecond).padStart(3, '0') : '000';
+      const h =
+        components.hour !== undefined
+          ? String(components.hour).padStart(2, "0")
+          : "00";
+      const mi =
+        components.minute !== undefined
+          ? String(components.minute).padStart(2, "0")
+          : "00";
+      const s =
+        components.second !== undefined
+          ? String(Math.floor(components.second)).padStart(2, "0")
+          : "00";
+      const ms =
+        components.millisecond !== undefined
+          ? String(components.millisecond).padStart(3, "0")
+          : "000";
       out += `T${h}:${mi}:${s}.${ms}`;
     }
     return out;
   }
 
   validate(input: string | Partial<TPSComponents>): boolean {
-    if (typeof input === 'string') {
+    if (typeof input === "string") {
       // basic ISO date with optional time and fractional seconds
       return /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?)?$/.test(
         input.trim(),
       );
     }
-    if (typeof input === 'object') {
+    if (typeof input === "object") {
       return (
         input.year !== undefined &&
         input.month !== undefined &&
@@ -127,29 +160,29 @@ export class GregorianDriver implements CalendarDriver {
 
   getMetadata(): CalendarMetadata {
     return {
-      name: 'Gregorian',
+      name: "Gregorian",
       monthNames: [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
       ],
       dayNames: [
-        'Sunday',
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday',
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
       ],
       monthsPerYear: 12,
       epochYear: 1,

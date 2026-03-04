@@ -2,7 +2,7 @@
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
  * @packageDocumentation
- * @version 0.5.0
+ * @version 0.5.2
  * @license Apache-2.0
  * @copyright 2026 TPS Standards Working Group
  *
@@ -16,6 +16,7 @@ export declare const DefaultCalendars: {
     readonly TPS: "tps";
     readonly GREG: "greg";
     readonly HIJ: "hij";
+    readonly PER: "per";
     readonly JUL: "jul";
     readonly HOLO: "holo";
     readonly UNIX: "unix";
@@ -523,7 +524,6 @@ export declare class TPSUID7RB {
     /**
      * Generate a TPS string from a Date and optional location.
      */
-    private static generateTPSString;
     /**
      * Parse epoch milliseconds from a TPS string.
      * Supports both URI format (tps://...) and time-only format (T:greg...)

@@ -1,6 +1,6 @@
 {
   "name": "@nextera.one/tps-standard",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "The Universal Protocol for Space-Time Coordinates. A standard URI scheme (tps://) combining WGS84 spatial data with hierarchical, multi-calendar temporal coordinates. Includes TPS-UID: time-first, reversible event identifiers.",
   "keywords": [
     "tps",
@@ -13,6 +13,11 @@
     "calendar",
     "gregorian",
     "hijri",
+    "persian",
+    "jalali",
+    "julian",
+    "holocene",
+    "human-era",
     "unix",
     "geolocation"
   ],

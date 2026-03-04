@@ -12,7 +12,7 @@
  * 3. Convert day-of-year to TPS month/day (each month = 28 days)
  * 4. Preserve millennium/century/year structure
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from '../index';
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../index";
 export declare class TpsDriver implements CalendarDriver {
     readonly code = "tps";
     readonly name = "TPS Canonical";
@@ -33,18 +33,18 @@ export declare class TpsDriver implements CalendarDriver {
     getDateFromComponents(components: Partial<TPSComponents>): Date;
     getFromDate(date: Date): string;
     /**
-     * Parse a TPS date string: "YYYY-MM-DD" where MM is 01-13, DD is 01-28.
+     * Parse a TPS date string: "YYYY-MM-DD" where MM is 01-12, DD is 01-28.
      * Optional time: "YYYY-MM-DD HH:MM:SS.mmm"
      */
     parseDate(input: string, format?: string): Partial<TPSComponents>;
     /**
-     * Format TPS components to "YYYY-MM-DD" where MM is 01-13, DD is 01-28.
+     * Format TPS components to "YYYY-MM-DD" where MM is 01-12, DD is 01-28.
      * With time: "YYYY-MM-DD THH:MM:SS.mmm"
      */
     format(components: Partial<TPSComponents>, format?: string): string;
     /**
      * Validate TPS date string or components.
-     * TPS has months 1-13, each with 28 days.
+     * TPS has months 1-12, each with 28 days.
      */
     validate(input: string | Partial<TPSComponents>): boolean;
     /**

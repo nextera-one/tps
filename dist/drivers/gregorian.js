@@ -11,7 +11,7 @@ const index_1 = require("../index");
  */
 class GregorianDriver {
     constructor() {
-        this.code = 'greg';
+        this.code = "greg";
     }
     getComponentsFromDate(date) {
         const fullYear = date.getUTCFullYear();
@@ -29,11 +29,12 @@ class GregorianDriver {
         };
     }
     getDateFromComponents(components) {
-        const m = components.millennium || 0;
-        const c = components.century || 1;
-        const y = components.year || 0;
+        const m = components.millennium ?? 0;
+        const c = components.century ?? 1;
+        const y = components.year ?? 0;
         const fullYear = (m - 1) * 1000 + (c - 1) * 100 + y;
-        return new Date(Date.UTC(fullYear, (components.month || 1) - 1, components.day || 1, components.hour || 0, components.minute || 0, Math.floor(components.second || 0), components.millisecond ?? Math.round(((components.second || 0) % 1) * 1000)));
+        return new Date(Date.UTC(fullYear, (components.month || 1) - 1, components.day || 1, components.hour || 0, components.minute || 0, Math.floor(components.second || 0), components.millisecond ??
+            Math.round(((components.second || 0) % 1) * 1000)));
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
@@ -55,7 +56,7 @@ class GregorianDriver {
         const hour = m[4] !== undefined ? parseInt(m[4], 10) : undefined;
         const minute = m[5] !== undefined ? parseInt(m[5], 10) : undefined;
         const second = m[6] !== undefined ? parseInt(m[6], 10) : undefined;
-        const millisecond = m[7] !== undefined ? parseInt((m[7] + '000').slice(0, 3), 10) : undefined;
+        const millisecond = m[7] !== undefined ? parseInt((m[7] + "000").slice(0, 3), 10) : undefined;
         const comp = {
             calendar: this.code,
             year,
@@ -74,28 +75,42 @@ class GregorianDriver {
     }
     format(components, format) {
         // For simplicity we ignore `format` and always produce ISO-ish string
-        const y = components.year !== undefined ? String(components.year).padStart(4, '0') : '0000';
-        const mo = components.month !== undefined ? String(components.month).padStart(2, '0') : '01';
-        const d = components.day !== undefined ? String(components.day).padStart(2, '0') : '01';
+        const y = components.year !== undefined
+            ? String(components.year).padStart(4, "0")
+            : "0000";
+        const mo = components.month !== undefined
+            ? String(components.month).padStart(2, "0")
+            : "01";
+        const d = components.day !== undefined
+            ? String(components.day).padStart(2, "0")
+            : "01";
         let out = `${y}-${mo}-${d}`;
         if (components.hour !== undefined ||
             components.minute !== undefined ||
             components.second !== undefined ||
             components.millisecond !== undefined) {
-            const h = components.hour !== undefined ? String(components.hour).padStart(2, '0') : '00';
-            const mi = components.minute !== undefined ? String(components.minute).padStart(2, '0') : '00';
-            const s = components.second !== undefined ? String(Math.floor(components.second)).padStart(2, '0') : '00';
-            const ms = components.millisecond !== undefined ? String(components.millisecond).padStart(3, '0') : '000';
+            const h = components.hour !== undefined
+                ? String(components.hour).padStart(2, "0")
+                : "00";
+            const mi = components.minute !== undefined
+                ? String(components.minute).padStart(2, "0")
+                : "00";
+            const s = components.second !== undefined
+                ? String(Math.floor(components.second)).padStart(2, "0")
+                : "00";
+            const ms = components.millisecond !== undefined
+                ? String(components.millisecond).padStart(3, "0")
+                : "000";
             out += `T${h}:${mi}:${s}.${ms}`;
         }
         return out;
     }
     validate(input) {
-        if (typeof input === 'string') {
+        if (typeof input === "string") {
             // basic ISO date with optional time and fractional seconds
             return /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?)?$/.test(input.trim());
         }
-        if (typeof input === 'object') {
+        if (typeof input === "object") {
             return (input.year !== undefined &&
                 input.month !== undefined &&
                 input.day !== undefined &&
@@ -109,29 +124,29 @@ class GregorianDriver {
     }
     getMetadata() {
         return {
-            name: 'Gregorian',
+            name: "Gregorian",
             monthNames: [
-                'January',
-                'February',
-                'March',
-                'April',
-                'May',
-                'June',
-                'July',
-                'August',
-                'September',
-                'October',
-                'November',
-                'December',
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
             ],
             dayNames: [
-                'Sunday',
-                'Monday',
-                'Tuesday',
-                'Wednesday',
-                'Thursday',
-                'Friday',
-                'Saturday',
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
             ],
             monthsPerYear: 12,
             epochYear: 1,
