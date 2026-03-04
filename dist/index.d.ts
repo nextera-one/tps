@@ -2,7 +2,7 @@
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
  * @packageDocumentation
- * @version 0.5.2
+ * @version 0.5.3
  * @license Apache-2.0
  * @copyright 2026 TPS Standards Working Group
  *
