@@ -9,7 +9,14 @@
  *
  * Conversion uses Julian Day Number algorithms.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents, TPS } from "../index";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { buildTimePart } from "../utils/tps-string";
+import {
+  gregorianToJdn,
+  jdnToGregorian,
+  julianToJdn,
+  jdnToJulian,
+} from "../utils/calendar";
 
 export class JulianDriver implements CalendarDriver {
   readonly code = "jul";
@@ -49,15 +56,13 @@ export class JulianDriver implements CalendarDriver {
     31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
   ];
 
-  // ── CalendarDriver interface ──────────────────────────────────────────
-
   getComponentsFromDate(date: Date): Partial<TPSComponents> {
-    const jdn = this.gregorianToJdn(
+    const jdn = gregorianToJdn(
       date.getUTCFullYear(),
       date.getUTCMonth() + 1,
       date.getUTCDate(),
     );
-    const { jy, jm, jd } = this.jdnToJulian(jdn);
+    const { jy, jm, jd } = jdnToJulian(jdn);
 
     return {
       calendar: this.code,
@@ -85,8 +90,8 @@ export class JulianDriver implements CalendarDriver {
     }
     const jm = components.month ?? 1;
     const jd = components.day ?? 1;
-    const jdn = this.julianToJdn(fullYear, jm, jd);
-    const { gy, gm, gd } = this.jdnToGregorian(jdn);
+    const jdn = julianToJdn(fullYear, jm, jd);
+    const { gy, gm, gd } = jdnToGregorian(jdn);
 
     return new Date(
       Date.UTC(
@@ -103,17 +108,17 @@ export class JulianDriver implements CalendarDriver {
 
   getFromDate(date: Date): string {
     const comp = this.getComponentsFromDate(date) as TPSComponents;
-    return TPS.buildTimePart(comp);
+    return buildTimePart(comp);
   }
 
-  parseDate(input: string, format?: string): Partial<TPSComponents> {
+  parseDate(input: string, _format?: string): Partial<TPSComponents> {
     const trimmed = input.trim();
     const m = trimmed.match(
       /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?)?$/,
     );
-    if (!m) {
+    if (!m)
       throw new Error(`JulianDriver.parseDate: unsupported format "${input}"`);
-    }
+
     const fullYear = parseInt(m[1], 10);
     const result: Partial<TPSComponents> = {
       calendar: this.code,
@@ -131,7 +136,7 @@ export class JulianDriver implements CalendarDriver {
     return result;
   }
 
-  format(components: Partial<TPSComponents>, format?: string): string {
+  format(components: Partial<TPSComponents>, _format?: string): string {
     const pad = (n?: number, w = 2) => String(n ?? 0).padStart(w, "0");
     let fullYear: number;
     if (components.millennium !== undefined) {
@@ -164,7 +169,6 @@ export class JulianDriver implements CalendarDriver {
       );
     }
     if (typeof input === "object") {
-      // Reconstruct full year for leap check
       let fullYear: number;
       if (input.millennium !== undefined) {
         fullYear =
@@ -178,7 +182,7 @@ export class JulianDriver implements CalendarDriver {
       if (month === undefined || day === undefined) return false;
       if (month < 1 || month > 12 || day < 1) return false;
       let maxDay = this.DAYS_IN_MONTH[month - 1];
-      if (month === 2 && this.isLeapYear(fullYear)) maxDay = 29;
+      if (month === 2 && fullYear % 4 === 0) maxDay = 29;
       return day <= maxDay;
     }
     return false;
@@ -193,63 +197,5 @@ export class JulianDriver implements CalendarDriver {
       monthsPerYear: 12,
       epochYear: 1,
     };
-  }
-
-  // ── Internal helpers ──────────────────────────────────────────────────
-
-  /** Julian leap year: every 4 years, no century exception */
-  private isLeapYear(year: number): boolean {
-    return year % 4 === 0;
-  }
-
-  // ── JDN algorithms ────────────────────────────────────────────────────
-
-  private julianToJdn(jy: number, jm: number, jd: number): number {
-    const a = Math.floor((14 - jm) / 12);
-    const y = jy + 4800 - a;
-    const m = jm + 12 * a - 3;
-    return (
-      jd + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 32083
-    );
-  }
-
-  private jdnToJulian(jdn: number): { jy: number; jm: number; jd: number } {
-    const c = jdn + 32082;
-    const d = Math.floor((4 * c + 3) / 1461);
-    const e = c - Math.floor((1461 * d) / 4);
-    const m = Math.floor((5 * e + 2) / 153);
-    const jd = e - Math.floor((153 * m + 2) / 5) + 1;
-    const jm = m + 3 - 12 * Math.floor(m / 10);
-    const jy = d - 4800 + Math.floor(m / 10);
-    return { jy, jm, jd };
-  }
-
-  /** Gregorian → JDN (for converting incoming Gregorian Date) */
-  private gregorianToJdn(gy: number, gm: number, gd: number): number {
-    const a = Math.floor((14 - gm) / 12);
-    const y = gy + 4800 - a;
-    const m = gm + 12 * a - 3;
-    return (
-      gd +
-      Math.floor((153 * m + 2) / 5) +
-      365 * y +
-      Math.floor(y / 4) -
-      Math.floor(y / 100) +
-      Math.floor(y / 400) -
-      32045
-    );
-  }
-
-  private jdnToGregorian(jdn: number): { gy: number; gm: number; gd: number } {
-    const a = jdn + 32044;
-    const b = Math.floor((4 * a + 3) / 146097);
-    const c = a - Math.floor((146097 * b) / 4);
-    const d = Math.floor((4 * c + 3) / 1461);
-    const e = c - Math.floor((1461 * d) / 4);
-    const m = Math.floor((5 * e + 2) / 153);
-    const gd = e - Math.floor((153 * m + 2) / 5) + 1;
-    const gm = m + 3 - 12 * Math.floor(m / 10);
-    const gy = 100 * b + d - 4800 + Math.floor(m / 10);
-    return { gy, gm, gd };
   }
 }

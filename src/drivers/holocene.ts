@@ -9,17 +9,19 @@
  *
  * This is a thin wrapper around GregorianDriver with a year offset.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents, TPS } from "../index";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { buildTimePart } from "../utils/tps-string";
 import { GregorianDriver } from "./gregorian";
 
+/**
+ * Holocene (Human Era) Calendar Driver
+ */
 export class HoloceneDriver implements CalendarDriver {
   readonly code = "holo";
   readonly name = "Holocene (Human Era)";
 
   private readonly gregorian = new GregorianDriver();
   private readonly YEAR_OFFSET = 10000;
-
-  // ── CalendarDriver interface ──────────────────────────────────────────
 
   getComponentsFromDate(date: Date): Partial<TPSComponents> {
     const greg = this.gregorian.getComponentsFromDate(date);
@@ -57,21 +59,20 @@ export class HoloceneDriver implements CalendarDriver {
 
   getFromDate(date: Date): string {
     const comp = this.getComponentsFromDate(date) as TPSComponents;
-    return TPS.buildTimePart(comp);
+    return buildTimePart(comp);
   }
 
-  parseDate(input: string, format?: string): Partial<TPSComponents> {
-    // Accept ISO-like: "12026-01-09" (Holocene year)
+  parseDate(input: string, _format?: string): Partial<TPSComponents> {
     const m = input
       .trim()
       .match(
         /^(\d{4,5})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?)?$/,
       );
-    if (!m) {
+    if (!m)
       throw new Error(
         `HoloceneDriver.parseDate: unsupported format "${input}"`,
       );
-    }
+
     const result: Partial<TPSComponents> = {
       calendar: this.code,
       year: parseInt(m[1], 10),
@@ -86,9 +87,8 @@ export class HoloceneDriver implements CalendarDriver {
     return result;
   }
 
-  format(components: Partial<TPSComponents>, format?: string): string {
+  format(components: Partial<TPSComponents>, _format?: string): string {
     const pad = (n?: number, w = 2) => String(n ?? 0).padStart(w, "0");
-    // Reconstruct full Holocene year from components
     let holoYear: number;
     if (components.millennium !== undefined) {
       const m = components.millennium ?? 0;
@@ -117,7 +117,6 @@ export class HoloceneDriver implements CalendarDriver {
       );
     }
     if (typeof input === "object") {
-      // Delegate day/month validation to Gregorian (same structure)
       return this.gregorian.validate({
         year: input.year,
         month: input.month,
@@ -146,7 +145,7 @@ export class HoloceneDriver implements CalendarDriver {
       ],
       isLunar: false,
       monthsPerYear: 12,
-      epochYear: -10000, // 10001 BCE
+      epochYear: -10000,
     };
   }
 }

@@ -1,10 +1,7 @@
-import { CalendarDriver, TPSComponents, CalendarMetadata } from "../index";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
 /**
  * Gregorian calendar driver.
- * This mirrors the built-in logic that used to live in `TPS.fromDate`/`toDate`
- * and provides implementations for the full `CalendarDriver` interface.
- * The driver also implements the optional helpers, enabling unit tests to
- * exercise `parseDate`, `format`, `validate`, and `getMetadata`.
+ * Supports robust validation and canonical Date conversions.
  */
 export declare class GregorianDriver implements CalendarDriver {
     readonly code: string;
@@ -13,6 +10,7 @@ export declare class GregorianDriver implements CalendarDriver {
     getFromDate(date: Date): string;
     parseDate(input: string, format?: string): Partial<TPSComponents>;
     format(components: Partial<TPSComponents>, format?: string): string;
+    private isLeap;
     validate(input: string | Partial<TPSComponents>): boolean;
     getMetadata(): CalendarMetadata;
 }

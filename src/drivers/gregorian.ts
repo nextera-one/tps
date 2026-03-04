@@ -1,17 +1,9 @@
-import {
-  CalendarDriver,
-  TPSComponents,
-  TimeOrder,
-  TPS,
-  CalendarMetadata,
-} from "../index";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { buildTimePart } from "../utils/tps-string";
 
 /**
  * Gregorian calendar driver.
- * This mirrors the built-in logic that used to live in `TPS.fromDate`/`toDate`
- * and provides implementations for the full `CalendarDriver` interface.
- * The driver also implements the optional helpers, enabling unit tests to
- * exercise `parseDate`, `format`, `validate`, and `getMetadata`.
+ * Supports robust validation and canonical Date conversions.
  */
 export class GregorianDriver implements CalendarDriver {
   readonly code: string = "greg";
@@ -54,16 +46,13 @@ export class GregorianDriver implements CalendarDriver {
 
   getFromDate(date: Date): string {
     const comp = this.getComponentsFromDate(date) as TPSComponents;
-    // buildTimePart understands the `order` field if the caller has set it
-    return TPS.buildTimePart(comp);
+    return buildTimePart(comp);
   }
 
   // --- optional helpers --------------------------------------------------
 
   parseDate(input: string, format?: string): Partial<TPSComponents> {
-    // Accept ISO-like formats: "YYYY-MM-DD" and optionally time portion
     const s = input.trim();
-    // simple regex - not exhaustive
     const m = s.match(
       /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?)?$/,
     );
@@ -95,7 +84,6 @@ export class GregorianDriver implements CalendarDriver {
   }
 
   format(components: Partial<TPSComponents>, format?: string): string {
-    // For simplicity we ignore `format` and always produce ISO-ish string
     const y =
       components.year !== undefined
         ? String(components.year).padStart(4, "0")
@@ -136,24 +124,38 @@ export class GregorianDriver implements CalendarDriver {
     return out;
   }
 
+  private isLeap(y: number): boolean {
+    return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  }
+
   validate(input: string | Partial<TPSComponents>): boolean {
     if (typeof input === "string") {
-      // basic ISO date with optional time and fractional seconds
       return /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?)?$/.test(
         input.trim(),
       );
     }
     if (typeof input === "object") {
-      return (
-        input.year !== undefined &&
-        input.month !== undefined &&
-        input.day !== undefined &&
-        input.year >= 0 &&
-        input.month >= 1 &&
-        input.month <= 12 &&
-        input.day >= 1 &&
-        input.day <= 31
-      );
+      const y = input.year ?? 0;
+      const m = input.month ?? 1;
+      const d = input.day ?? 1;
+
+      if (y < 0 || m < 1 || m > 12 || d < 1) return false;
+
+      const daysInMonth = [
+        31,
+        this.isLeap(y) ? 29 : 28,
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+      ];
+      return d <= daysInMonth[m - 1];
     }
     return false;
   }

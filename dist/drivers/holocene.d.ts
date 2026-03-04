@@ -9,7 +9,10 @@
  *
  * This is a thin wrapper around GregorianDriver with a year offset.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../index";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+/**
+ * Holocene (Human Era) Calendar Driver
+ */
 export declare class HoloceneDriver implements CalendarDriver {
     readonly code = "holo";
     readonly name = "Holocene (Human Era)";
@@ -18,8 +21,8 @@ export declare class HoloceneDriver implements CalendarDriver {
     getComponentsFromDate(date: Date): Partial<TPSComponents>;
     getDateFromComponents(components: Partial<TPSComponents>): Date;
     getFromDate(date: Date): string;
-    parseDate(input: string, format?: string): Partial<TPSComponents>;
-    format(components: Partial<TPSComponents>, format?: string): string;
+    parseDate(input: string, _format?: string): Partial<TPSComponents>;
+    format(components: Partial<TPSComponents>, _format?: string): string;
     validate(input: string | Partial<TPSComponents>): boolean;
     getMetadata(): CalendarMetadata;
 }

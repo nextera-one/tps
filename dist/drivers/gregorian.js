@@ -1,13 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GregorianDriver = void 0;
-const index_1 = require("../index");
+const tps_string_1 = require("../utils/tps-string");
 /**
  * Gregorian calendar driver.
- * This mirrors the built-in logic that used to live in `TPS.fromDate`/`toDate`
- * and provides implementations for the full `CalendarDriver` interface.
- * The driver also implements the optional helpers, enabling unit tests to
- * exercise `parseDate`, `format`, `validate`, and `getMetadata`.
+ * Supports robust validation and canonical Date conversions.
  */
 class GregorianDriver {
     constructor() {
@@ -38,14 +35,11 @@ class GregorianDriver {
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        // buildTimePart understands the `order` field if the caller has set it
-        return index_1.TPS.buildTimePart(comp);
+        return (0, tps_string_1.buildTimePart)(comp);
     }
     // --- optional helpers --------------------------------------------------
     parseDate(input, format) {
-        // Accept ISO-like formats: "YYYY-MM-DD" and optionally time portion
         const s = input.trim();
-        // simple regex - not exhaustive
         const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?)?$/);
         if (!m) {
             throw new Error(`GregorianDriver.parseDate: unsupported format "${input}"`);
@@ -74,7 +68,6 @@ class GregorianDriver {
         return comp;
     }
     format(components, format) {
-        // For simplicity we ignore `format` and always produce ISO-ish string
         const y = components.year !== undefined
             ? String(components.year).padStart(4, "0")
             : "0000";
@@ -105,20 +98,34 @@ class GregorianDriver {
         }
         return out;
     }
+    isLeap(y) {
+        return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    }
     validate(input) {
         if (typeof input === "string") {
-            // basic ISO date with optional time and fractional seconds
             return /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?)?$/.test(input.trim());
         }
         if (typeof input === "object") {
-            return (input.year !== undefined &&
-                input.month !== undefined &&
-                input.day !== undefined &&
-                input.year >= 0 &&
-                input.month >= 1 &&
-                input.month <= 12 &&
-                input.day >= 1 &&
-                input.day <= 31);
+            const y = input.year ?? 0;
+            const m = input.month ?? 1;
+            const d = input.day ?? 1;
+            if (y < 0 || m < 1 || m > 12 || d < 1)
+                return false;
+            const daysInMonth = [
+                31,
+                this.isLeap(y) ? 29 : 28,
+                31,
+                30,
+                31,
+                30,
+                31,
+                31,
+                30,
+                31,
+                30,
+                31,
+            ];
+            return d <= daysInMonth[m - 1];
         }
         return false;
     }

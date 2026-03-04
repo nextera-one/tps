@@ -1,19 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HoloceneDriver = void 0;
+const tps_string_1 = require("../utils/tps-string");
+const gregorian_1 = require("./gregorian");
 /**
  * Holocene (Human Era) Calendar Driver
- *
- * Calendar characteristics:
- * - Adds 10,000 to the Gregorian year (year 1 CE = 10,001 HE)
- * - Same months, days, and leap year rules as Gregorian
- * - Proposed by Cesare Emiliani in 1993 to encompass all of human history
- * - Also called Human Era (HE) calendar
- *
- * This is a thin wrapper around GregorianDriver with a year offset.
  */
-const index_1 = require("../index");
-const gregorian_1 = require("./gregorian");
 class HoloceneDriver {
     constructor() {
         this.code = "holo";
@@ -21,7 +13,6 @@ class HoloceneDriver {
         this.gregorian = new gregorian_1.GregorianDriver();
         this.YEAR_OFFSET = 10000;
     }
-    // ── CalendarDriver interface ──────────────────────────────────────────
     getComponentsFromDate(date) {
         const greg = this.gregorian.getComponentsFromDate(date);
         const fullYear = date.getUTCFullYear() + this.YEAR_OFFSET;
@@ -44,16 +35,14 @@ class HoloceneDriver {
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return index_1.TPS.buildTimePart(comp);
+        return (0, tps_string_1.buildTimePart)(comp);
     }
-    parseDate(input, format) {
-        // Accept ISO-like: "12026-01-09" (Holocene year)
+    parseDate(input, _format) {
         const m = input
             .trim()
             .match(/^(\d{4,5})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?)?$/);
-        if (!m) {
+        if (!m)
             throw new Error(`HoloceneDriver.parseDate: unsupported format "${input}"`);
-        }
         const result = {
             calendar: this.code,
             year: parseInt(m[1], 10),
@@ -70,9 +59,8 @@ class HoloceneDriver {
             result.millisecond = parseInt((m[7] + "000").slice(0, 3), 10);
         return result;
     }
-    format(components, format) {
+    format(components, _format) {
         const pad = (n, w = 2) => String(n ?? 0).padStart(w, "0");
-        // Reconstruct full Holocene year from components
         let holoYear;
         if (components.millennium !== undefined) {
             const m = components.millennium ?? 0;
@@ -96,7 +84,6 @@ class HoloceneDriver {
             return /^\d{4,5}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?)?$/.test(input.trim());
         }
         if (typeof input === "object") {
-            // Delegate day/month validation to Gregorian (same structure)
             return this.gregorian.validate({
                 year: input.year,
                 month: input.month,
@@ -124,7 +111,7 @@ class HoloceneDriver {
             ],
             isLunar: false,
             monthsPerYear: 12,
-            epochYear: -10000, // 10001 BCE
+            epochYear: -10000,
         };
     }
 }

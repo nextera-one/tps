@@ -1,18 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PersianDriver = void 0;
-/**
- * Persian (Jalali / Solar Hijri) Calendar Driver
- *
- * Calendar characteristics:
- * - Solar calendar used in Iran and Afghanistan
- * - Year 1 started in 622 CE (same epoch as Islamic Hijri, but solar-based)
- * - 6 months of 31 days, 5 months of 30 days, 1 month of 29 (30 in leap)
- * - Current year ≈ Gregorian year − 621
- *
- * Conversion uses Julian Day Number algorithms based on jalaali-js.
- */
-const index_1 = require("../index");
+const tps_string_1 = require("../utils/tps-string");
+const calendar_1 = require("../utils/calendar");
 class PersianDriver {
     constructor() {
         this.code = "per";
@@ -59,10 +49,9 @@ class PersianDriver {
             31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29,
         ];
     }
-    // ── CalendarDriver interface ──────────────────────────────────────────
     getComponentsFromDate(date) {
-        const jdn = this.gregorianToJdn(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
-        const { jy, jm, jd } = this.jdnToPersian(jdn);
+        const jdn = (0, calendar_1.gregorianToJdn)(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+        const { jy, jm, jd } = (0, calendar_1.jdnToPersian)(jdn);
         return {
             calendar: this.code,
             millennium: Math.floor(jy / 1000) + 1,
@@ -77,7 +66,6 @@ class PersianDriver {
         };
     }
     getDateFromComponents(components) {
-        // Reconstruct full Persian year from millennium/century/year if available
         let jy;
         if (components.millennium !== undefined) {
             const m = components.millennium ?? 0;
@@ -90,17 +78,16 @@ class PersianDriver {
         }
         const jm = components.month ?? 1;
         const jd = components.day ?? 1;
-        const jdn = this.persianToJdn(jy, jm, jd);
-        const { gy, gm, gd } = this.jdnToGregorian(jdn);
+        const jdn = (0, calendar_1.persianToJdn)(jy, jm, jd);
+        const { gy, gm, gd } = (0, calendar_1.jdnToGregorian)(jdn);
         return new Date(Date.UTC(gy, gm - 1, gd, components.hour ?? 0, components.minute ?? 0, Math.floor(components.second ?? 0), components.millisecond ?? 0));
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return index_1.TPS.buildTimePart(comp);
+        return (0, tps_string_1.buildTimePart)(comp);
     }
     parseDate(input, format) {
         const trimmed = input.trim();
-        // Short format: 19/10/1404 or 1404/10/19
         if (format === "short" ||
             (trimmed.includes("/") && trimmed.split("/")[0].length <= 2)) {
             const parts = trimmed.split("/").map(Number);
@@ -120,7 +107,6 @@ class PersianDriver {
                 day,
             };
         }
-        // ISO-like: 1404-10-19 [HH:MM:SS]
         const segments = trimmed.split(/[\s,T]+/);
         const [parsedYear, month, day] = segments[0].split(/[-/]/).map(Number);
         const result = { calendar: this.code };
@@ -140,7 +126,6 @@ class PersianDriver {
     }
     format(components, format) {
         const pad = (n) => String(n ?? 0).padStart(2, "0");
-        // Reconstruct full year from millennium/century/year
         let fullYear;
         if (components.millennium !== undefined) {
             const m = components.millennium ?? 0;
@@ -151,9 +136,8 @@ class PersianDriver {
         else {
             fullYear = components.year ?? 0;
         }
-        if (format === "short") {
+        if (format === "short")
             return `${components.day}/${pad(components.month)}/${fullYear}`;
-        }
         if (format === "long") {
             const mn = this.MONTH_NAMES[(components.month ?? 1) - 1];
             return `${components.day} ${mn} ${fullYear}`;
@@ -178,14 +162,18 @@ class PersianDriver {
             comp = input;
         }
         const { year, month, day } = comp;
-        if (!year || year < 1)
+        if (year === undefined || year < 1)
             return false;
-        if (!month || month < 1 || month > 12)
+        if (month === undefined || month < 1 || month > 12)
             return false;
-        if (!day || day < 1)
+        if (day === undefined || day < 1)
             return false;
-        let max = this.DAYS_IN_MONTH[(month ?? 1) - 1];
-        if (month === 12 && this.isLeapYear(year))
+        // leap check
+        const leapYears = [1, 5, 9, 13, 17, 22, 26, 30];
+        const cycle = ((year - 1) % 33) + 1;
+        const isLeap = leapYears.includes(cycle);
+        let max = this.DAYS_IN_MONTH[month - 1];
+        if (month === 12 && isLeap)
             max = 30;
         return day <= max;
     }
@@ -200,69 +188,6 @@ class PersianDriver {
             monthsPerYear: 12,
             epochYear: 622,
         };
-    }
-    // ── Internal: leap year (33-year cycle) ───────────────────────────────
-    isLeapYear(year) {
-        const leapYears = [1, 5, 9, 13, 17, 22, 26, 30];
-        const cycle = ((year - 1) % 33) + 1;
-        return leapYears.includes(cycle);
-    }
-    // ── Internal: Julian Day Number algorithms ────────────────────────────
-    gregorianToJdn(gy, gm, gd) {
-        const a = Math.floor((14 - gm) / 12);
-        const y = gy + 4800 - a;
-        const m = gm + 12 * a - 3;
-        return (gd +
-            Math.floor((153 * m + 2) / 5) +
-            365 * y +
-            Math.floor(y / 4) -
-            Math.floor(y / 100) +
-            Math.floor(y / 400) -
-            32045);
-    }
-    jdnToGregorian(jdn) {
-        const a = jdn + 32044;
-        const b = Math.floor((4 * a + 3) / 146097);
-        const c = a - Math.floor((146097 * b) / 4);
-        const d = Math.floor((4 * c + 3) / 1461);
-        const e = c - Math.floor((1461 * d) / 4);
-        const m = Math.floor((5 * e + 2) / 153);
-        const gd = e - Math.floor((153 * m + 2) / 5) + 1;
-        const gm = m + 3 - 12 * Math.floor(m / 10);
-        const gy = 100 * b + d - 4800 + Math.floor(m / 10);
-        return { gy, gm, gd };
-    }
-    persianToJdn(jy, jm, jd) {
-        const EPOCH = 1948320;
-        const epbase = jy - (jy >= 0 ? 474 : 473);
-        const epyear = 474 + (epbase % 2820);
-        return (jd +
-            (jm <= 7 ? (jm - 1) * 31 : (jm - 1) * 30 + 6) +
-            Math.floor((epyear * 682 - 110) / 2816) +
-            (epyear - 1) * 365 +
-            Math.floor(epbase / 2820) * 1029983 +
-            EPOCH -
-            1);
-    }
-    jdnToPersian(jdn) {
-        const depoch = jdn - this.persianToJdn(475, 1, 1);
-        const cycle = Math.floor(depoch / 1029983);
-        const cyear = depoch % 1029983;
-        let ycycle;
-        if (cyear === 1029982) {
-            ycycle = 2820;
-        }
-        else {
-            const aux1 = Math.floor(cyear / 366);
-            const aux2 = cyear % 366;
-            ycycle =
-                Math.floor((2134 * aux1 + 2816 * aux2 + 2815) / 1028522) + aux1 + 1;
-        }
-        const jy = ycycle + 2820 * cycle + 474;
-        const yday = jdn - this.persianToJdn(jy, 1, 1) + 1;
-        const jm = yday <= 186 ? Math.ceil(yday / 31) : Math.ceil((yday - 6) / 30);
-        const jd = jdn - this.persianToJdn(jy, jm, 1) + 1;
-        return { jy: jy <= 0 ? jy - 1 : jy, jm, jd };
     }
 }
 exports.PersianDriver = PersianDriver;
