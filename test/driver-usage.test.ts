@@ -42,7 +42,7 @@ console.log('=== PART 1: Built-in Calendars ===\n');
 // validate some basic expectations using the test helper
 const defaultStr = TPS.fromDate(new Date('2026-01-07T13:20:45Z'));
 test('Default driver returns tps calendar string', () =>
-  defaultStr === 'T:tps.m3.c1.y26.m1.d7.h20.m20.s45.m0',
+  defaultStr === 'T:tps.m1.c1.y28.m9.w3.d15.h6.m20.s45.m0',
 );
 
 // Gregorian Calendar (default)

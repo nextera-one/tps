@@ -2,7 +2,7 @@
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
  * @packageDocumentation
- * @version 0.6.0
+ * @version 0.8.0
  * @license Apache-2.0
  * @copyright 2026 TPS Standards Working Group
  *
@@ -39,6 +39,7 @@ export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone";
 import { DriverManager } from "./driver-manager";
 import { buildTimePart, parseTimeString } from "./utils/tps-string";
 import { localToUtc } from "./utils/timezone";
+import { buildTpsComponentsFromDayIndex, getTpsDayFraction, getTpsDayIndex, getTpsSubDayMilliseconds, isTpsIndexedToken, normalizeTpsComponents, } from "./utils/tps-native";
 import { DefaultCalendars, } from "./types";
 export class TPS {
     /**
@@ -136,12 +137,22 @@ export class TPS {
         if (!tokenStr) {
             return `${beforeT}T:${cal}.m0.c0.y0.m0.d0.h0.m0.s0.m0${timeSuffix}`;
         }
+        if (/^i/i.test(tokenStr)) {
+            return `${beforeT}T:${cal}.${tokenStr}${timeSuffix}`;
+        }
         const tokens = tokenStr
             .split(".")
             .filter((t) => t.length >= 2 && /^[a-z]/.test(t))
             .map((t) => ({ p: t[0], v: t.slice(1) }));
-        // ── 6. Detect order from non-m tokens (c=7, y=6, d=4, h=3, s=1) ─────────
-        const nonMRank = { c: 7, y: 6, d: 4, h: 3, s: 1 };
+        // ── 6. Detect order from non-m tokens (c=7, y=6, w=4.5, d=4, h=3, s=1) ──
+        const nonMRank = {
+            c: 7,
+            y: 6,
+            w: 4.5,
+            d: 4,
+            h: 3,
+            s: 1,
+        };
         const nonMSeq = tokens
             .filter((t) => t.p !== "m" && nonMRank[t.p] !== undefined)
             .map((t) => nonMRank[t.p]);
@@ -170,12 +181,12 @@ export class TPS {
             }
         }
         // ── 9. Build complete DESC token string, filling gaps with '0' ───────────
-        // Full DESC slot sequence: m(8) c(7) y(6) m(5) d(4) h(3) m(2) s(1) m(0)
         const descSlots = [
             ["m", 8],
             ["c", 7],
             ["y", 6],
             ["m", 5],
+            ...(tokens.some((t) => t.p === "w") ? [["w", 4.5]] : []),
             ["d", 4],
             ["h", 3],
             ["m", 2],
@@ -189,10 +200,22 @@ export class TPS {
     }
     static validate(input) {
         const sanitized = this.sanitizeTimeInput(input);
-        if (sanitized.startsWith("tps://")) {
-            return this.REGEX_URI.test(sanitized);
+        const matchesRegex = sanitized.startsWith("tps://")
+            ? this.REGEX_URI.test(sanitized)
+            : this.REGEX_TIME.test(sanitized);
+        if (!matchesRegex)
+            return false;
+        const indexedMatch = sanitized.match(/(?:^T:|@T:)([a-z]{3,4})\.(i[^!;?#]+)/i);
+        if (indexedMatch) {
+            if (indexedMatch[1].toLowerCase() !== DefaultCalendars.TPS) {
+                return false;
+            }
+            if (!isTpsIndexedToken(indexedMatch[2])) {
+                return this.parse(sanitized) !== null;
+            }
+            return this.parse(sanitized) !== null;
         }
-        return this.REGEX_TIME.test(sanitized);
+        return true;
     }
     static parse(input) {
         // Always sanitize first so we operate on the canonical form.  This also
@@ -273,12 +296,53 @@ export class TPS {
         });
         return comp;
     }
+    static buildTimeString(comp, opts) {
+        let time = buildTimePart(comp, opts);
+        if (comp.extensions && Object.keys(comp.extensions).length > 0) {
+            const extStrings = Object.entries(comp.extensions).map(([k, v]) => {
+                return `${k.toUpperCase()}:${v}`;
+            });
+            time += `;${extStrings.join(";")}`;
+        }
+        if (comp.context && Object.keys(comp.context).length > 0) {
+            const ctxStrings = Object.entries(comp.context).map(([k, v]) => `${k}=${v}`);
+            time += `#C:${ctxStrings.join(";")}`;
+        }
+        return time;
+    }
+    static toTpsNativeComponents(input) {
+        if (input instanceof Date) {
+            return normalizeTpsComponents({
+                calendar: DefaultCalendars.TPS,
+                ...buildTpsComponentsFromDayIndex(getTpsDayIndex(input), getTpsDayFraction(input)),
+            });
+        }
+        if (typeof input === "string") {
+            const parsed = this.parse(input);
+            if (!parsed || parsed.calendar !== DefaultCalendars.TPS)
+                return null;
+            return normalizeTpsComponents(parsed);
+        }
+        if ((input.calendar ?? DefaultCalendars.TPS) !== DefaultCalendars.TPS) {
+            return null;
+        }
+        return normalizeTpsComponents({
+            ...input,
+            calendar: DefaultCalendars.TPS,
+        });
+    }
+    static renderTpsLikeInput(originalInput, comp, opts) {
+        const sanitized = this.sanitizeTimeInput(originalInput);
+        return sanitized.startsWith("tps://")
+            ? this.toURI(comp, opts)
+            : this.buildTimeString(comp, opts);
+    }
     /**
      * SERIALIZER: Converts a components object into a full TPS URI.
      * @param comp - The TPS components.
      * @returns Full URI string (e.g. "tps://...").
      */
-    static toURI(comp) {
+    static toURI(comp, opts) {
         // ── 1. Location layers (v0.6.0) ──────────────────────────────────────────
         // Build an ordered list of location layer strings, then join with ";"
         const layers = [];
@@ -355,7 +419,7 @@ export class TPS {
         // ── 2. Actor (/A:...) ─────────────────────────────────────────────────────
         const actorPart = comp.actor ? `/A:${comp.actor}` : "";
         // ── 3. Time (mandatory 9 tokens) ─────────────────────────────────────────
-        const timePart = buildTimePart(comp);
+        const timePart = buildTimePart(comp, opts);
         // ── 4. Extensions (;KEY:val;...) ─────────────────────────────────────────
         let extPart = "";
         if (comp.extensions && Object.keys(comp.extensions).length > 0) {
@@ -390,11 +454,12 @@ export class TPS {
             // `fromDate` helper and instead generate components ourselves so that
             // order is honoured even if the driver doesn't know about it.  This
             // keeps behaviour identical to the old built-in implementation.
-            if (opts?.order) {
+            if (opts?.order || opts?.timeMode || opts?.indexedPrecision !== undefined) {
                 const comp = driver.getComponentsFromDate(date);
                 comp.calendar = normalizedCalendar;
-                comp.order = opts.order;
-                return buildTimePart(comp);
+                if (opts?.order)
+                    comp.order = opts.order;
+                return buildTimePart(comp, opts);
             }
             return driver.getFromDate(date);
         }
@@ -406,7 +471,7 @@ export class TPS {
             comp.unixSeconds = parseFloat(s);
             if (opts?.order)
                 comp.order = opts.order;
-            return buildTimePart(comp);
+            return buildTimePart(comp, opts);
         }
         if (normalizedCalendar === DefaultCalendars.GREG) {
             const fullYear = date.getUTCFullYear();
@@ -421,7 +486,7 @@ export class TPS {
             comp.millisecond = date.getUTCMilliseconds();
             if (opts?.order)
                 comp.order = opts.order;
-            return buildTimePart(comp);
+            return buildTimePart(comp, opts);
         }
         throw new Error(`Calendar driver '${normalizedCalendar}' not implemented. Register a driver.`);
     }
@@ -466,6 +531,79 @@ export class TPS {
             return new Date(utcMs);
         }
         return date;
+    }
+    static toDayIndex(input) {
+        const comp = this.toTpsNativeComponents(input);
+        return comp ? getTpsDayIndex(comp) : null;
+    }
+    static fromDayIndex(dayIndex, dayFraction = 0, opts) {
+        if (!Number.isSafeInteger(dayIndex) || dayIndex < 0) {
+            throw new Error("TPS.fromDayIndex: dayIndex must be a non-negative integer");
+        }
+        if (!Number.isFinite(dayFraction) || dayFraction < 0 || dayFraction >= 1) {
+            throw new Error("TPS.fromDayIndex: dayFraction must be in [0, 1)");
+        }
+        const comp = buildTpsComponentsFromDayIndex(dayIndex, dayFraction);
+        if (opts?.order)
+            comp.order = opts.order;
+        return buildTimePart(comp, opts);
+    }
+    static getDayFraction(input) {
+        const comp = this.toTpsNativeComponents(input);
+        return comp ? getTpsDayFraction(comp) : null;
+    }
+    static getSubDayMilliseconds(input) {
+        const comp = this.toTpsNativeComponents(input);
+        return comp ? getTpsSubDayMilliseconds(comp) : null;
+    }
+    static expandIndexedTime(input) {
+        const sanitized = this.sanitizeTimeInput(input);
+        const indexedMatch = sanitized.match(/(?:^T:|@T:)([a-z]{3,4})\.(i[^!;?#]+)/i);
+        if (!indexedMatch ||
+            indexedMatch[1].toLowerCase() !== DefaultCalendars.TPS ||
+            !isTpsIndexedToken(indexedMatch[2])) {
+            const parsed = this.parse(sanitized);
+            if (!parsed || parsed.calendar !== DefaultCalendars.TPS)
+                return null;
+            return input.trim();
+        }
+        const comp = this.toTpsNativeComponents(sanitized);
+        if (!comp)
+            return null;
+        return this.renderTpsLikeInput(sanitized, comp);
+    }
+    static expandIndex(input) {
+        return this.expandIndexedTime(input);
+    }
+    static compactIndexedTime(input, opts) {
+        const comp = this.toTpsNativeComponents(input);
+        if (!comp)
+            return null;
+        return this.renderTpsLikeInput(input, comp, {
+            timeMode: "indexed-fraction",
+            indexedPrecision: opts?.precision,
+        });
+    }
+    static compact(input, opts) {
+        return this.compactIndexedTime(input, opts);
+    }
+    static toIndexedTime(input, opts) {
+        const comp = this.toTpsNativeComponents(input);
+        if (!comp)
+            return null;
+        return this.buildTimeString(comp, {
+            timeMode: "indexed-fraction",
+            indexedPrecision: opts?.precision,
+        });
+    }
+    static toIndexedURI(input, opts) {
+        const comp = this.toTpsNativeComponents(input);
+        if (!comp)
+            return null;
+        return this.toURI(comp, {
+            timeMode: "indexed-fraction",
+            indexedPrecision: opts?.precision,
+        });
     }
     // --- DRIVER CONVENIENCE METHODS ---
     /**

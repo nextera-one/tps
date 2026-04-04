@@ -6,6 +6,7 @@ import { DefaultCalendars } from "./types";
 import { Env } from "./utils/env";
 export class TPSUID7RB {
     static encodeBinary(tps, opts = {}) {
+        tps = TPS.expandIndexedTime(tps) ?? tps;
         const compress = opts.compress ?? false;
         const epochMs = opts.epochMs ?? this.epochMsFromTPSString(tps);
         if (!Number.isInteger(epochMs) || epochMs < 0 || epochMs > 0xffffffffffff) {
@@ -91,6 +92,7 @@ export class TPSUID7RB {
         });
     }
     static seal(tps, privateKey, opts) {
+        tps = TPS.expandIndexedTime(tps) ?? tps;
         const compress = opts?.compress ?? false;
         const epochMs = opts?.epochMs ?? this.epochMsFromTPSString(tps);
         if (!Number.isInteger(epochMs) || epochMs < 0 || epochMs > 0xffffffffffff) {
@@ -138,6 +140,7 @@ export class TPSUID7RB {
         return this.decodeBinary(content);
     }
     static epochMsFromTPSString(tps) {
+        tps = TPS.expandIndexedTime(tps) ?? tps;
         const date = TPS.toDate(tps);
         if (date)
             return date.getTime();

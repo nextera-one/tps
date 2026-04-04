@@ -1,7 +1,7 @@
 /**
  * TpsDate Date-like wrapper with native TPS conversion helpers.
  */
-import { TimeOrder } from "./types";
+import { TPSTimeOptions } from "./types";
 export declare class TpsDate {
     private readonly internal;
     private _cachedComponents;
@@ -18,11 +18,11 @@ export declare class TpsDate {
     static fromTPS(tps: string): TpsDate;
     toGregorianDate(): Date;
     toDate(): Date;
-    toTPS(calendar?: string, opts?: {
-        order?: TimeOrder;
-    }): string;
+    toTPS(calendar?: string, opts?: TPSTimeOptions): string;
     toTPSURI(calendar?: string, opts?: {
-        order?: TimeOrder;
+        order?: TPSTimeOptions["order"];
+        timeMode?: TPSTimeOptions["timeMode"];
+        indexedPrecision?: TPSTimeOptions["indexedPrecision"];
         latitude?: number;
         longitude?: number;
         altitude?: number;

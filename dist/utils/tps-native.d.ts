@@ -1,0 +1,32 @@
+import { TPSComponents } from "../types";
+export declare const TPS_DAY_MS: number;
+export declare const TPS_DAY_START_OFFSET_MS: number;
+export declare const TPS_DAYS_PER_WEEK = 7;
+export declare const TPS_WEEKS_PER_MONTH = 4;
+export declare const TPS_MONTHS_PER_YEAR = 12;
+export declare const TPS_DAYS_PER_MONTH: number;
+export declare const TPS_DAYS_PER_YEAR: number;
+export declare const TPS_EPOCH_START_MS: number;
+export type TpsIndexedParts = {
+    dayIndex: number;
+    dayFraction: number;
+    subDayMilliseconds: number;
+    fractionPrecision?: number;
+};
+export declare function splitTpsFullYear(fullYear: number): {
+    millennium: number;
+    century: number;
+    year: number;
+};
+export declare function getTpsFullYear(components: Partial<TPSComponents>): number;
+export declare function getTpsDayOfMonth(components: Partial<TPSComponents>): number;
+export declare function getTpsSubDayMilliseconds(input: Date | Partial<TPSComponents>): number;
+export declare function getTpsIndexedFromDate(date: Date): TpsIndexedParts;
+export declare function buildTpsComponentsFromDayIndex(dayIndex: number, dayFraction?: number): Partial<TPSComponents>;
+export declare function normalizeTpsComponents(components: Partial<TPSComponents>): Partial<TPSComponents>;
+export declare function getTpsDayIndex(input: Date | Partial<TPSComponents>): number;
+export declare function getTpsDayFraction(input: Date | Partial<TPSComponents>): number;
+export declare function parseTpsIndexedToken(token: string): TpsIndexedParts | null;
+export declare function formatTpsIndexedToken(components: Partial<TPSComponents>, precision?: number): string;
+export declare function isTpsIndexedToken(token: string): boolean;
+export declare function validateTpsComponents(components: Partial<TPSComponents>): boolean;

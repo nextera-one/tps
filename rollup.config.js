@@ -20,7 +20,7 @@ export default {
   plugins: [
     resolve({ preferBuiltins: true }),
     typescript({
-      tsconfig: "./tsconfig.json",
+      tsconfig: "./tsconfig.esm.json",
       declaration: false,
       sourceMap: false,
     }),

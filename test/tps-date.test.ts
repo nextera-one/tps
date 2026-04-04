@@ -59,9 +59,8 @@ test("new TpsDate(y,m,d,...) behaves like JS Date", () => {
 
 test("TPS getters use TPS calendar components", () => {
   const d = new TpsDate(Date.UTC(2026, 0, 9, 22, 30, 25, 0));
-  // TPS calendar is +7h shifted from Gregorian in current driver,
-  // so this becomes next-day local TPS components.
-  return d.getDate() === 10 && d.getHours() === 5 && d.getMinutes() === 30;
+  // TPS native time uses an epoch-based 336-day year with a 07:00 boundary.
+  return d.getDate() === 17 && d.getHours() === 15 && d.getMinutes() === 30;
 });
 
 test("toString returns TPS time string", () => {

@@ -1,8 +1,8 @@
-import { TPSComponents, TimeOrder } from "../types";
+import { TPSComponents, TimeOrder, TPSTimeOptions } from "../types";
 /**
  * Generate the canonical `T:` time string for a set of components.
  */
-export declare function buildTimePart(comp: TPSComponents): string;
+export declare function buildTimePart(comp: Partial<TPSComponents>, options?: TPSTimeOptions): string;
 /**
  * Parse the time portion of a TPS string into components.
  */
