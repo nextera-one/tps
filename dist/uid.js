@@ -9,6 +9,7 @@ const types_1 = require("./types");
 const env_1 = require("./utils/env");
 class TPSUID7RB {
     static encodeBinary(tps, opts = {}) {
+        tps = index_1.TPS.expandIndexedTime(tps) ?? tps;
         const compress = opts.compress ?? false;
         const epochMs = opts.epochMs ?? this.epochMsFromTPSString(tps);
         if (!Number.isInteger(epochMs) || epochMs < 0 || epochMs > 0xffffffffffff) {
@@ -94,6 +95,7 @@ class TPSUID7RB {
         });
     }
     static seal(tps, privateKey, opts) {
+        tps = index_1.TPS.expandIndexedTime(tps) ?? tps;
         const compress = opts?.compress ?? false;
         const epochMs = opts?.epochMs ?? this.epochMsFromTPSString(tps);
         if (!Number.isInteger(epochMs) || epochMs < 0 || epochMs > 0xffffffffffff) {
@@ -141,6 +143,7 @@ class TPSUID7RB {
         return this.decodeBinary(content);
     }
     static epochMsFromTPSString(tps) {
+        tps = index_1.TPS.expandIndexedTime(tps) ?? tps;
         const date = index_1.TPS.toDate(tps);
         if (date)
             return date.getTime();

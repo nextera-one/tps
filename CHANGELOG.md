@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.8.0] — 2026-04-04
+
+### Added
+
+- Indexed TPS time helpers: `TPS.toDayIndex()`, `TPS.fromDayIndex()`, `TPS.getDayFraction()`, `TPS.getSubDayMilliseconds()`, `TPS.toIndexedTime()`, `TPS.toIndexedURI()`, `TPS.expandIndexedTime()`, `TPS.compactIndexedTime()`.
+- Indexed TPS syntax support for `T:tps.iN` and `T:tps.iN.F`.
+- Explicit TPS week token support (`w`) in TPS native hierarchical strings.
+- Boundary and round-trip tests for indexed TPS time and UID normalization.
+
+### Changed
+
+- Reworked the TPS native driver from a shifted-Gregorian projection to an epoch-based `12 × 4 × 7` calendar model.
+- TPS native day boundaries now anchor at `07:00` Gregorian / UTC.
+- TPS native conversion now derives `dayIndex`, `dayFraction`, `week`, and hierarchical coordinates from the same core day-index math.
+- Indexed TPS inputs are expanded to hierarchical TPS before `TPSUID7RB` storage or signing.
+
+### Fixed
+
+- Indexed TPS validation now rejects malformed or non-canonical compact fractions and rejects indexed syntax on non-TPS calendars.
+
 ## [0.5.35] — 2026-03-04
 
 ### Added

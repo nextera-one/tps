@@ -2,32 +2,23 @@
  * TPS calendar driver for canonical TPS time strings.
  *
  * TPS Calendar characteristics:
- * - Epoch: August 11, 1999 (00:00 UTC)
- * - Months: Always 28 days (12 months per year = 336 days)
- * - Time offset: 7 hours ahead of Gregorian (00:00 Gregorian = 07:00 TPS)
- *
- * Conversion process:
- * 1. Apply 7-hour offset to Gregorian date
- * 2. Calculate day-of-year in offset date
- * 3. Convert day-of-year to TPS month/day (each month = 28 days)
- * 4. Preserve millennium/century/year structure
+ * - Epoch anchor: 1999-08-11T07:00:00.000Z
+ * - Day boundary: 07:00 Gregorian / UTC
+ * - Year shape: 12 months × 4 weeks × 7 days = 336 days
+ * - Indexed form: `T:tps.iN[.F]`
  */
 import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
 /**
  * TPS calendar driver for canonical TPS time strings.
  *
  * TPS Calendar characteristics:
- * - Epoch: August 11, 1999 (00:00 UTC)
- * - Months: Always 28 days (12 months per year = 336 days)
- * - Time offset: 7 hours ahead of Gregorian (00:00 Gregorian = 07:00 TPS)
+ * - Epoch anchor: 1999-08-11T07:00:00.000Z
+ * - Day boundary: 07:00 Gregorian / UTC
+ * - Year shape: 12 months × 4 weeks × 7 days = 336 days
  */
 export declare class TpsDriver implements CalendarDriver {
     readonly code = "tps";
-    readonly name = "TPS Canonical";
-    private readonly TPS_OFFSET_HOURS;
-    private readonly TPS_DAYS_PER_MONTH;
-    private readonly TPS_MONTHS_PER_YEAR;
-    private readonly gregorian;
+    readonly name = "TPS Indexed";
     getComponentsFromDate(date: Date): Partial<TPSComponents>;
     getDateFromComponents(components: Partial<TPSComponents>): Date;
     getFromDate(date: Date): string;

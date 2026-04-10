@@ -66,7 +66,7 @@ const decoded = TPSUID7RB.decodeBinaryB64(uid);
 
 | Code   | Calendar                     | Notes                                            |
 | ------ | ---------------------------- | ------------------------------------------------ |
-| `tps`  | TPS Native                   | Hierarchical millennium/century/year tokens      |
+| `tps`  | TPS Native                   | Epoch-based 12×4×7 calendar, 07:00 day boundary  |
 | `greg` | Gregorian                    | ISO proleptic calendar                           |
 | `unix` | Unix Epoch                   | seconds since 1970-01-01T00:00:00Z               |
 | `per`  | Persian (Jalali/Solar Hijri) | Solar calendar, used in Iran & Afghanistan       |
@@ -112,10 +112,12 @@ console.log(TPS.driverManager.list()); // ["tps","greg","unix","per","hij","jul"
 
 ## Time Format
 
-Canonical token order is **descending hierarchy**:
+Canonical token order is **descending hierarchy**.
+
+For TPS native strings the week token is explicit:
 
 ```
-T:greg.m3.c1.y26.m01.d13.h09.m30.s12.m0
+T:tps.m1.c1.y28.m9.w3.d17.h07.m30.s25.m0
 ```
 
 | Token        | Meaning         |
@@ -124,6 +126,7 @@ T:greg.m3.c1.y26.m01.d13.h09.m30.s12.m0
 | `c`          | century         |
 | `y`          | year in century |
 | `m` (rank 5) | month           |
+| `w`          | week in month   |
 | `d`          | day             |
 | `h`          | hour            |
 | `m` (rank 2) | minute          |
@@ -131,6 +134,37 @@ T:greg.m3.c1.y26.m01.d13.h09.m30.s12.m0
 | `m` (rank 0) | millisecond     |
 
 Ascending order is supported via `TimeOrder.ASC` and auto-detected during parsing.
+
+### Indexed TPS Time
+
+TPS native time also supports an indexed exact form:
+
+```ts
+TPS.toIndexedTime(new Date("2026-01-07T13:20:45Z"));
+// "T:tps.i9646.264409722"
+
+TPS.expandIndexedTime("T:tps.i1000.52");
+// "T:tps.m1.c1.y2.m12.w3.d21.h12.m28.s48.m0"
+
+TPS.fromDayIndex(1000, 0.52);
+// "T:tps.m1.c1.y2.m12.w3.d21.h12.m28.s48.m0"
+
+TPS.compactIndexedTime("T:tps.m1.c1.y2.m12.w3.d21.h12.m28.s48.m0", {
+  precision: 2,
+});
+// "T:tps.i1000.52"
+```
+
+Rules for indexed TPS:
+
+- `iN` is the absolute TPS day index since the TPS epoch.
+- `.F` is the fraction of the TPS day from TPS day start.
+- TPS day start is `07:00` Gregorian / UTC.
+- Indexed form is TPS-only.
+- Indexed form is an official alternate exact form.
+- Expand indexed form before signing, hashing, or UID storage.
+- `TPSUID7RB` automatically expands indexed TPS inputs before encoding.
+- Fractions are compact: trailing-zero forms such as `i1000.50` and `i1000.100` are rejected.
 
 ---
 
@@ -199,6 +233,9 @@ const td = new TpsDate("tps://unknown@T:greg.m3.c1.y26.m01.d09.h14.m30.s25.m0");
 
 const gregorian = td.toGregorianDate(); // native JS Date clone
 const asTps = td.toTPS(DefaultCalendars.TPS, { order: TimeOrder.DESC });
+const asIndexed = td.toTPS(DefaultCalendars.TPS, {
+  timeMode: "indexed-fraction",
+});
 const uri = td.toTPSURI(DefaultCalendars.GREG, {
   latitude: 31.95,
   longitude: 35.91,

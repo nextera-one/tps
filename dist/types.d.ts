@@ -24,17 +24,28 @@ export declare enum TimeOrder {
     DESC = "desc",
     ASC = "asc"
 }
+export type TPSTimeMode = "hierarchical" | "indexed-fraction";
+export interface TPSTimeOptions {
+    order?: TimeOrder;
+    timeMode?: TPSTimeMode;
+    indexedPrecision?: number;
+}
 export interface TPSComponents {
     calendar: string;
     millennium: number;
     century: number;
     year: number;
     month: number;
+    week?: number;
     day: number;
     hour: number;
     minute: number;
     second: number;
     millisecond: number;
+    dayIndex?: number;
+    dayFraction?: number;
+    subDayMilliseconds?: number;
+    fractionPrecision?: number;
     unixSeconds?: number;
     latitude?: number;
     longitude?: number;

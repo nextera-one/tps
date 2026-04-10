@@ -3,10 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildTimePart = buildTimePart;
 exports.parseTimeString = parseTimeString;
 const types_1 = require("../types");
+const tps_native_1 = require("./tps-native");
 /**
  * Generate the canonical `T:` time string for a set of components.
  */
-function buildTimePart(comp) {
+function buildTimePart(comp, options) {
     const calendar = (comp.calendar || "").toLowerCase();
     if (!/^[a-z]{3,4}$/.test(calendar)) {
         throw new Error(`Invalid calendar code '${comp.calendar}'. Calendar code width must be 3–4 lowercase letters.`);
@@ -18,26 +19,37 @@ function buildTimePart(comp) {
         }
         return time;
     }
+    if (calendar === types_1.DefaultCalendars.TPS && options?.timeMode === "indexed-fraction") {
+        time += `.${(0, tps_native_1.formatTpsIndexedToken)(comp, options.indexedPrecision)}`;
+        if (comp.signature) {
+            time += `!${comp.signature}`;
+        }
+        return time;
+    }
+    const source = calendar === types_1.DefaultCalendars.TPS ? (0, tps_native_1.normalizeTpsComponents)(comp) : comp;
     const tokens = [
-        ["m", comp.millennium, 8],
-        ["c", comp.century, 7],
-        ["y", comp.year, 6],
-        ["m", comp.month, 5],
-        ["d", comp.day, 4],
-        ["h", comp.hour, 3],
-        ["m", comp.minute, 2],
-        ["s", comp.second, 1],
-        ["m", comp.millisecond, 0],
+        ["m", source.millennium, 8],
+        ["c", source.century, 7],
+        ["y", source.year, 6],
+        ["m", source.month, 5],
+        ...(calendar === types_1.DefaultCalendars.TPS && source.week !== undefined
+            ? [["w", source.week, 4.5]]
+            : []),
+        ["d", source.day, 4],
+        ["h", source.hour, 3],
+        ["m", source.minute, 2],
+        ["s", source.second, 1],
+        ["m", source.millisecond, 0],
     ];
-    const order = comp.order || types_1.TimeOrder.DESC;
+    const order = options?.order || source.order || types_1.TimeOrder.DESC;
     const activeTokens = order === types_1.TimeOrder.ASC ? [...tokens].reverse() : tokens;
     for (const [pref, val] of activeTokens) {
         if (val !== undefined) {
             time += `.${pref}${val}`;
         }
     }
-    if (comp.signature) {
-        time += `!${comp.signature}`;
+    if (source.signature) {
+        time += `!${source.signature}`;
     }
     return time;
 }
@@ -49,14 +61,32 @@ function parseTimeString(input) {
     s = s.split(/[!;?#]/)[0];
     if (s.startsWith("T:"))
         s = s.slice(2);
+    const firstDot = s.indexOf(".");
+    const calendar = firstDot === -1 ? s : s.slice(0, firstDot);
+    const rawTokenString = firstDot === -1 ? "" : s.slice(firstDot + 1);
+    if (calendar === types_1.DefaultCalendars.TPS && (0, tps_native_1.isTpsIndexedToken)(rawTokenString)) {
+        const indexed = (0, tps_native_1.parseTpsIndexedToken)(rawTokenString);
+        if (!indexed)
+            return null;
+        return {
+            components: (0, tps_native_1.normalizeTpsComponents)({
+                calendar,
+                ...indexed,
+            }),
+            order: types_1.TimeOrder.DESC,
+        };
+    }
+    if (calendar === types_1.DefaultCalendars.TPS && /^i/i.test(rawTokenString)) {
+        return null;
+    }
     const parts = s.split(".");
     if (parts.length === 0)
         return null;
-    const calendar = parts[0];
     const comp = { calendar };
     const fixedRankMap = {
         c: 7,
         y: 6,
+        w: 4.5,
         d: 4,
         h: 3,
         s: 1,
@@ -137,6 +167,9 @@ function parseTimeString(input) {
                     case "y":
                         comp.year = parseInt(value, 10);
                         break;
+                    case "w":
+                        comp.week = parseInt(value, 10);
+                        break;
                     case "d":
                         comp.day = parseInt(value, 10);
                         break;
@@ -158,6 +191,16 @@ function parseTimeString(input) {
         const isDesc = ranks.every((v, i, a) => i === 0 || a[i - 1] >= v);
         if (isAsc && !isDesc)
             order = types_1.TimeOrder.ASC;
+    }
+    if (calendar === types_1.DefaultCalendars.TPS &&
+        comp.month !== undefined &&
+        comp.day !== undefined &&
+        comp.month >= 1 &&
+        comp.day >= 1) {
+        return {
+            components: (0, tps_native_1.normalizeTpsComponents)(comp),
+            order,
+        };
     }
     return { components: comp, order };
 }

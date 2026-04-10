@@ -2,7 +2,7 @@
  * TPS: Temporal Positioning System
  * The Universal Protocol for Space-Time Coordinates.
  * @packageDocumentation
- * @version 0.6.0
+ * @version 0.8.0
  * @license Apache-2.0
  * @copyright 2026 TPS Standards Working Group
  *
@@ -27,7 +27,7 @@ export { Env } from "./utils/env";
 export { DriverManager } from "./driver-manager";
 export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone";
 import { DriverManager } from "./driver-manager";
-import { CalendarDriver, TPSComponents, TimeOrder } from "./types";
+import { CalendarDriver, TPSComponents, TimeOrder, TPSTimeOptions } from "./types";
 export declare class TPS {
     /** Shared DriverManager instance — use TPS.driverManager for direct access. */
     static readonly driverManager: DriverManager;
@@ -55,12 +55,15 @@ export declare class TPS {
     static sanitizeTimeInput(input: string): string;
     static validate(input: string): boolean;
     static parse(input: string): TPSComponents | null;
+    private static buildTimeString;
+    private static toTpsNativeComponents;
+    private static renderTpsLikeInput;
     /**
      * SERIALIZER: Converts a components object into a full TPS URI.
      * @param comp - The TPS components.
      * @returns Full URI string (e.g. "tps://...").
      */
-    static toURI(comp: TPSComponents): string;
+    static toURI(comp: Partial<TPSComponents>, opts?: TPSTimeOptions): string;
     /**
      * CONVERTER: Creates a TPS Time Object string from a JavaScript Date.
      * Supports plugin drivers for non-Gregorian calendars.
@@ -70,9 +73,7 @@ export declare class TPS {
      *   supported key is `order` which may be `'ascending'` or `'descending'`.
      * @returns Canonical string (e.g., "T:tps.m3.c1.y26...").
      */
-    static fromDate(date?: Date, calendar?: string, opts?: {
-        order?: TimeOrder;
-    }): string;
+    static fromDate(date?: Date, calendar?: string, opts?: TPSTimeOptions): string;
     /**
      * CONVERTER: Converts a TPS string to a Date in a target calendar format.
      * Uses plugin drivers for cross-calendar conversion.
@@ -88,6 +89,24 @@ export declare class TPS {
      * @returns JS Date object or `null` if invalid.
      */
     static toDate(tpsString: string): Date | null;
+    static toDayIndex(input: Date | string | Partial<TPSComponents>): number | null;
+    static fromDayIndex(dayIndex: number, dayFraction?: number, opts?: TPSTimeOptions): string;
+    static getDayFraction(input: Date | string | Partial<TPSComponents>): number | null;
+    static getSubDayMilliseconds(input: Date | string | Partial<TPSComponents>): number | null;
+    static expandIndexedTime(input: string): string | null;
+    static expandIndex(input: string): string | null;
+    static compactIndexedTime(input: string, opts?: {
+        precision?: number;
+    }): string | null;
+    static compact(input: string, opts?: {
+        precision?: number;
+    }): string | null;
+    static toIndexedTime(input: Date | string | Partial<TPSComponents>, opts?: {
+        precision?: number;
+    }): string | null;
+    static toIndexedURI(input: Partial<TPSComponents>, opts?: {
+        precision?: number;
+    }): string | null;
     /**
      * Parse a calendar-specific date string into TPS components.
      * Requires the driver to implement `parseDate`.

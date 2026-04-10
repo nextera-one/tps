@@ -85,7 +85,11 @@ class TpsDate {
         return index_1.TPS.fromDate(this.internal, calendar, opts);
     }
     toTPSURI(calendar = types_1.DefaultCalendars.TPS, opts) {
-        const time = this.toTPS(calendar, { order: opts?.order });
+        const time = this.toTPS(calendar, {
+            order: opts?.order,
+            timeMode: opts?.timeMode,
+            indexedPrecision: opts?.indexedPrecision,
+        });
         const comp = index_1.TPS.parse(time);
         if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
             comp.latitude = opts.latitude;

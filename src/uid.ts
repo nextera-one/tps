@@ -35,6 +35,7 @@ export class TPSUID7RB {
     tps: string,
     opts: TPSUID7RBEncodeOptions = {},
   ): Uint8Array {
+    tps = TPS.expandIndexedTime(tps) ?? tps;
     const compress = opts.compress ?? false;
     const epochMs = opts.epochMs ?? this.epochMsFromTPSString(tps);
 
@@ -155,6 +156,7 @@ export class TPSUID7RB {
     privateKey: any,
     opts?: TPSUID7RBEncodeOptions,
   ): Uint8Array {
+    tps = TPS.expandIndexedTime(tps) ?? tps;
     const compress = opts?.compress ?? false;
     const epochMs = opts?.epochMs ?? this.epochMsFromTPSString(tps);
 
@@ -220,6 +222,7 @@ export class TPSUID7RB {
   }
 
   public static epochMsFromTPSString(tps: string): number {
+    tps = TPS.expandIndexedTime(tps) ?? tps;
     const date = TPS.toDate(tps);
     if (date) return date.getTime();
     const stripped = tps.replace(/;[^?#]*/, "").replace(/[?#].*$/, "");

@@ -2,7 +2,11 @@
  * TpsDate Date-like wrapper with native TPS conversion helpers.
  */
 
-import { TPSComponents, DefaultCalendars, TimeOrder } from "./types";
+import {
+  TPSComponents,
+  DefaultCalendars,
+  TPSTimeOptions,
+} from "./types";
 import { TPS } from "./index";
 
 export class TpsDate {
@@ -139,7 +143,7 @@ export class TpsDate {
 
   toTPS(
     calendar: string = DefaultCalendars.TPS,
-    opts?: { order?: TimeOrder },
+    opts?: TPSTimeOptions,
   ): string {
     return TPS.fromDate(this.internal, calendar, opts);
   }
@@ -147,7 +151,9 @@ export class TpsDate {
   toTPSURI(
     calendar: string = DefaultCalendars.TPS,
     opts?: {
-      order?: TimeOrder;
+      order?: TPSTimeOptions["order"];
+      timeMode?: TPSTimeOptions["timeMode"];
+      indexedPrecision?: TPSTimeOptions["indexedPrecision"];
       latitude?: number;
       longitude?: number;
       altitude?: number;
@@ -156,7 +162,11 @@ export class TpsDate {
       isRedactedLocation?: boolean;
     },
   ): string {
-    const time = this.toTPS(calendar, { order: opts?.order });
+    const time = this.toTPS(calendar, {
+      order: opts?.order,
+      timeMode: opts?.timeMode,
+      indexedPrecision: opts?.indexedPrecision,
+    });
     const comp = TPS.parse(time) as TPSComponents;
 
     if (opts?.latitude !== undefined && opts?.longitude !== undefined) {

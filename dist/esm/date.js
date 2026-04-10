@@ -1,7 +1,7 @@
 /**
  * TpsDate Date-like wrapper with native TPS conversion helpers.
  */
-import { DefaultCalendars } from "./types";
+import { DefaultCalendars, } from "./types";
 import { TPS } from "./index";
 export class TpsDate {
     constructor(...args) {
@@ -82,7 +82,11 @@ export class TpsDate {
         return TPS.fromDate(this.internal, calendar, opts);
     }
     toTPSURI(calendar = DefaultCalendars.TPS, opts) {
-        const time = this.toTPS(calendar, { order: opts?.order });
+        const time = this.toTPS(calendar, {
+            order: opts?.order,
+            timeMode: opts?.timeMode,
+            indexedPrecision: opts?.indexedPrecision,
+        });
         const comp = TPS.parse(time);
         if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
             comp.latitude = opts.latitude;
