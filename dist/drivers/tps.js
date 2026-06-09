@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TpsDriver = void 0;
-const tps_string_1 = require("../utils/tps-string");
-const tps_native_1 = require("../utils/tps-native");
+const tps_string_js_1 = require("../utils/tps-string.js");
+const tps_native_js_1 = require("../utils/tps-native.js");
 /**
  * TPS calendar driver for canonical TPS time strings.
  *
@@ -17,29 +17,29 @@ class TpsDriver {
         this.name = "TPS Indexed";
     }
     getComponentsFromDate(date) {
-        const deltaMs = date.getTime() - tps_native_1.TPS_EPOCH_START_MS;
-        const dayIndex = Math.floor(deltaMs / tps_native_1.TPS_DAY_MS);
-        const dayFraction = ((deltaMs % tps_native_1.TPS_DAY_MS) + tps_native_1.TPS_DAY_MS) % tps_native_1.TPS_DAY_MS / tps_native_1.TPS_DAY_MS;
-        return (0, tps_native_1.buildTpsComponentsFromDayIndex)(dayIndex, dayFraction);
+        const deltaMs = date.getTime() - tps_native_js_1.TPS_EPOCH_START_MS;
+        const dayIndex = Math.floor(deltaMs / tps_native_js_1.TPS_DAY_MS);
+        const dayFraction = ((deltaMs % tps_native_js_1.TPS_DAY_MS) + tps_native_js_1.TPS_DAY_MS) % tps_native_js_1.TPS_DAY_MS / tps_native_js_1.TPS_DAY_MS;
+        return (0, tps_native_js_1.buildTpsComponentsFromDayIndex)(dayIndex, dayFraction);
     }
     getDateFromComponents(components) {
-        const normalized = (0, tps_native_1.normalizeTpsComponents)({
+        const normalized = (0, tps_native_js_1.normalizeTpsComponents)({
             ...components,
             calendar: this.code,
         });
         const dayIndex = normalized.dayIndex ?? 0;
         const subDayMilliseconds = normalized.subDayMilliseconds ?? 0;
-        return new Date(tps_native_1.TPS_EPOCH_START_MS + dayIndex * tps_native_1.TPS_DAY_MS + subDayMilliseconds);
+        return new Date(tps_native_js_1.TPS_EPOCH_START_MS + dayIndex * tps_native_js_1.TPS_DAY_MS + subDayMilliseconds);
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return (0, tps_string_1.buildTimePart)(comp);
+        return (0, tps_string_js_1.buildTimePart)(comp);
     }
     parseDate(input, _format) {
         const s = input.trim();
-        const indexed = (0, tps_native_1.parseTpsIndexedToken)(s);
+        const indexed = (0, tps_native_js_1.parseTpsIndexedToken)(s);
         if (indexed) {
-            return (0, tps_native_1.normalizeTpsComponents)({
+            return (0, tps_native_js_1.normalizeTpsComponents)({
                 calendar: this.code,
                 ...indexed,
             });
@@ -50,10 +50,10 @@ class TpsDriver {
         const year = parseInt(m[1], 10);
         const month = parseInt(m[2], 10);
         const day = parseInt(m[3], 10);
-        if (month < 1 || month > tps_native_1.TPS_MONTHS_PER_YEAR) {
+        if (month < 1 || month > tps_native_js_1.TPS_MONTHS_PER_YEAR) {
             throw new Error(`TpsDriver.parseDate: invalid TPS month ${month} (expected 1-12)`);
         }
-        if (day < 1 || day > tps_native_1.TPS_DAYS_PER_MONTH) {
+        if (day < 1 || day > tps_native_js_1.TPS_DAYS_PER_MONTH) {
             throw new Error(`TpsDriver.parseDate: invalid TPS day ${day} (expected 1-28)`);
         }
         const hour = m[4] !== undefined ? parseInt(m[4], 10) : undefined;
@@ -74,14 +74,14 @@ class TpsDriver {
             comp.second = second;
         if (millisecond !== undefined)
             comp.millisecond = millisecond;
-        return (0, tps_native_1.normalizeTpsComponents)(comp);
+        return (0, tps_native_js_1.normalizeTpsComponents)(comp);
     }
     format(components, _format) {
-        const normalized = (0, tps_native_1.normalizeTpsComponents)({
+        const normalized = (0, tps_native_js_1.normalizeTpsComponents)({
             ...components,
             calendar: this.code,
         });
-        const fullYear = (0, tps_native_1.getTpsFullYear)(normalized);
+        const fullYear = (0, tps_native_js_1.getTpsFullYear)(normalized);
         const y = normalized.year !== undefined
             ? String(fullYear).padStart(4, "0")
             : "0000";
@@ -114,18 +114,18 @@ class TpsDriver {
     }
     validate(input) {
         if (typeof input === "string") {
-            if ((0, tps_native_1.parseTpsIndexedToken)(input.trim())) {
+            if ((0, tps_native_js_1.parseTpsIndexedToken)(input.trim())) {
                 return true;
             }
             try {
-                return (0, tps_native_1.validateTpsComponents)(this.parseDate(input));
+                return (0, tps_native_js_1.validateTpsComponents)(this.parseDate(input));
             }
             catch {
                 return false;
             }
         }
         if (typeof input === "object") {
-            return (0, tps_native_1.validateTpsComponents)(input);
+            return (0, tps_native_js_1.validateTpsComponents)(input);
         }
         return false;
     }
@@ -155,7 +155,7 @@ class TpsDriver {
                 "Day 6",
                 "Day 7",
             ],
-            monthsPerYear: tps_native_1.TPS_MONTHS_PER_YEAR,
+            monthsPerYear: tps_native_js_1.TPS_MONTHS_PER_YEAR,
             epochYear: 1999,
             isLunar: false,
         };

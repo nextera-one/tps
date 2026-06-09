@@ -12,6 +12,10 @@
     "types": ["node"],
     "sourceMap": true
   },
+  "ts-node": {
+    "comment": "Source uses explicit .js extensions on relative imports (required for the native-ESM build). experimentalResolver lets ts-node map those .js specifiers back to the .ts sources when running tests.",
+    "experimentalResolver": true
+  },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

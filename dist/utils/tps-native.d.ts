@@ -1,4 +1,4 @@
-import { TPSComponents } from "../types";
+import { TPSComponents } from "../types.js";
 export declare const TPS_DAY_MS: number;
 export declare const TPS_DAY_START_OFFSET_MS: number;
 export declare const TPS_DAYS_PER_WEEK = 7;

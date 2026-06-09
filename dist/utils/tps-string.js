@@ -2,8 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildTimePart = buildTimePart;
 exports.parseTimeString = parseTimeString;
-const types_1 = require("../types");
-const tps_native_1 = require("./tps-native");
+const types_js_1 = require("../types.js");
+const tps_native_js_1 = require("./tps-native.js");
 /**
  * Generate the canonical `T:` time string for a set of components.
  */
@@ -13,26 +13,26 @@ function buildTimePart(comp, options) {
         throw new Error(`Invalid calendar code '${comp.calendar}'. Calendar code width must be 3–4 lowercase letters.`);
     }
     let time = `T:${calendar}`;
-    if (calendar === types_1.DefaultCalendars.UNIX) {
+    if (calendar === types_js_1.DefaultCalendars.UNIX) {
         if (comp.unixSeconds !== undefined) {
             time += `.s${comp.unixSeconds}`;
         }
         return time;
     }
-    if (calendar === types_1.DefaultCalendars.TPS && options?.timeMode === "indexed-fraction") {
-        time += `.${(0, tps_native_1.formatTpsIndexedToken)(comp, options.indexedPrecision)}`;
+    if (calendar === types_js_1.DefaultCalendars.TPS && options?.timeMode === "indexed-fraction") {
+        time += `.${(0, tps_native_js_1.formatTpsIndexedToken)(comp, options.indexedPrecision)}`;
         if (comp.signature) {
             time += `!${comp.signature}`;
         }
         return time;
     }
-    const source = calendar === types_1.DefaultCalendars.TPS ? (0, tps_native_1.normalizeTpsComponents)(comp) : comp;
+    const source = calendar === types_js_1.DefaultCalendars.TPS ? (0, tps_native_js_1.normalizeTpsComponents)(comp) : comp;
     const tokens = [
         ["m", source.millennium, 8],
         ["c", source.century, 7],
         ["y", source.year, 6],
         ["m", source.month, 5],
-        ...(calendar === types_1.DefaultCalendars.TPS && source.week !== undefined
+        ...(calendar === types_js_1.DefaultCalendars.TPS && source.week !== undefined
             ? [["w", source.week, 4.5]]
             : []),
         ["d", source.day, 4],
@@ -41,8 +41,8 @@ function buildTimePart(comp, options) {
         ["s", source.second, 1],
         ["m", source.millisecond, 0],
     ];
-    const order = options?.order || source.order || types_1.TimeOrder.DESC;
-    const activeTokens = order === types_1.TimeOrder.ASC ? [...tokens].reverse() : tokens;
+    const order = options?.order || source.order || types_js_1.TimeOrder.DESC;
+    const activeTokens = order === types_js_1.TimeOrder.ASC ? [...tokens].reverse() : tokens;
     for (const [pref, val] of activeTokens) {
         if (val !== undefined) {
             time += `.${pref}${val}`;
@@ -64,19 +64,19 @@ function parseTimeString(input) {
     const firstDot = s.indexOf(".");
     const calendar = firstDot === -1 ? s : s.slice(0, firstDot);
     const rawTokenString = firstDot === -1 ? "" : s.slice(firstDot + 1);
-    if (calendar === types_1.DefaultCalendars.TPS && (0, tps_native_1.isTpsIndexedToken)(rawTokenString)) {
-        const indexed = (0, tps_native_1.parseTpsIndexedToken)(rawTokenString);
+    if (calendar === types_js_1.DefaultCalendars.TPS && (0, tps_native_js_1.isTpsIndexedToken)(rawTokenString)) {
+        const indexed = (0, tps_native_js_1.parseTpsIndexedToken)(rawTokenString);
         if (!indexed)
             return null;
         return {
-            components: (0, tps_native_1.normalizeTpsComponents)({
+            components: (0, tps_native_js_1.normalizeTpsComponents)({
                 calendar,
                 ...indexed,
             }),
-            order: types_1.TimeOrder.DESC,
+            order: types_js_1.TimeOrder.DESC,
         };
     }
-    if (calendar === types_1.DefaultCalendars.TPS && /^i/i.test(rawTokenString)) {
+    if (calendar === types_js_1.DefaultCalendars.TPS && /^i/i.test(rawTokenString)) {
         return null;
     }
     const parts = s.split(".");
@@ -91,8 +91,8 @@ function parseTimeString(input) {
         h: 3,
         s: 1,
     };
-    let initialOrder = types_1.TimeOrder.DESC;
-    if (calendar !== types_1.DefaultCalendars.UNIX) {
+    let initialOrder = types_js_1.TimeOrder.DESC;
+    if (calendar !== types_js_1.DefaultCalendars.UNIX) {
         const nonMRanks = [];
         for (let i = 1; i < parts.length; i++) {
             const pr = parts[i]?.charAt(0);
@@ -102,11 +102,11 @@ function parseTimeString(input) {
         if (nonMRanks.length >= 2) {
             const isAsc = nonMRanks.every((v, i, a) => i === 0 || a[i - 1] <= v);
             if (isAsc)
-                initialOrder = types_1.TimeOrder.ASC;
+                initialOrder = types_js_1.TimeOrder.ASC;
         }
     }
     const assignMRank = (lastRank, ord) => {
-        if (ord === types_1.TimeOrder.DESC) {
+        if (ord === types_js_1.TimeOrder.DESC) {
             if (lastRank === null)
                 return 8;
             if (lastRank > 5)
@@ -133,7 +133,7 @@ function parseTimeString(input) {
             continue;
         const prefix = token.charAt(0);
         const value = token.slice(1);
-        if (calendar === types_1.DefaultCalendars.UNIX && prefix === "s") {
+        if (calendar === types_js_1.DefaultCalendars.UNIX && prefix === "s") {
             comp.unixSeconds = parseFloat(value);
             ranks.push(9);
             continue;
@@ -185,20 +185,20 @@ function parseTimeString(input) {
             }
         }
     }
-    let order = types_1.TimeOrder.DESC;
+    let order = types_js_1.TimeOrder.DESC;
     if (ranks.length > 1) {
         const isAsc = ranks.every((v, i, a) => i === 0 || a[i - 1] <= v);
         const isDesc = ranks.every((v, i, a) => i === 0 || a[i - 1] >= v);
         if (isAsc && !isDesc)
-            order = types_1.TimeOrder.ASC;
+            order = types_js_1.TimeOrder.ASC;
     }
-    if (calendar === types_1.DefaultCalendars.TPS &&
+    if (calendar === types_js_1.DefaultCalendars.TPS &&
         comp.month !== undefined &&
         comp.day !== undefined &&
         comp.month >= 1 &&
         comp.day >= 1) {
         return {
-            components: (0, tps_native_1.normalizeTpsComponents)(comp),
+            components: (0, tps_native_js_1.normalizeTpsComponents)(comp),
             order,
         };
     }

@@ -9,7 +9,7 @@
  *
  * Conversion uses Julian Day Number algorithms.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
 export declare class JulianDriver implements CalendarDriver {
     readonly code = "jul";
     readonly name = "Julian Calendar";

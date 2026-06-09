@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HijriDriver = void 0;
-const tps_string_1 = require("../utils/tps-string");
-const calendar_1 = require("../utils/calendar");
+const tps_string_js_1 = require("../utils/tps-string.js");
+const calendar_js_1 = require("../utils/calendar.js");
 class HijriDriver {
     constructor() {
         this.code = "hij";
@@ -46,7 +46,7 @@ class HijriDriver {
         ];
     }
     getComponentsFromDate(date) {
-        const { hy, hm, hd } = (0, calendar_1.gregorianToHijri)(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+        const { hy, hm, hd } = (0, calendar_js_1.gregorianToHijri)(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
         return {
             calendar: this.code,
             millennium: Math.floor(hy / 1000) + 1,
@@ -73,12 +73,12 @@ class HijriDriver {
         }
         const hm = components.month ?? 1;
         const hd = components.day ?? 1;
-        const { gy, gm, gd } = (0, calendar_1.hijriToGregorian)(hy, hm, hd);
+        const { gy, gm, gd } = (0, calendar_js_1.hijriToGregorian)(hy, hm, hd);
         return new Date(Date.UTC(gy, gm - 1, gd, components.hour ?? 0, components.minute ?? 0, Math.floor(components.second ?? 0), components.millisecond ?? 0));
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return (0, tps_string_1.buildTimePart)(comp);
+        return (0, tps_string_js_1.buildTimePart)(comp);
     }
     parseDate(input, format) {
         const trimmed = input.trim();

@@ -10,7 +10,7 @@
  * This uses the Tabular Islamic Calendar (civil/Type II-A) algorithm
  * based on the formulas from Meeus "Astronomical Algorithms".
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
 export declare class HijriDriver implements CalendarDriver {
     readonly code = "hij";
     readonly name = "Hijri (Islamic Calendar)";

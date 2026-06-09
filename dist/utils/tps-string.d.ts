@@ -1,4 +1,4 @@
-import { TPSComponents, TimeOrder, TPSTimeOptions } from "../types";
+import { TPSComponents, TimeOrder, TPSTimeOptions } from "../types.js";
 /**
  * Generate the canonical `T:` time string for a set of components.
  */

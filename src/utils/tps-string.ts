@@ -3,13 +3,13 @@ import {
   TimeOrder,
   DefaultCalendars,
   TPSTimeOptions,
-} from "../types";
+} from "../types.js";
 import {
   formatTpsIndexedToken,
   isTpsIndexedToken,
   normalizeTpsComponents,
   parseTpsIndexedToken,
-} from "./tps-native";
+} from "./tps-native.js";
 
 /**
  * Generate the canonical `T:` time string for a set of components.

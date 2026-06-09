@@ -12,9 +12,9 @@
  * based on the Hong Kong Observatory almanac algorithm.
  */
 
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
-import { buildTimePart } from "../utils/tps-string";
-import { gregorianToJdn, jdnToGregorian } from "../utils/calendar";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
+import { buildTimePart } from "../utils/tps-string.js";
+import { gregorianToJdn, jdnToGregorian } from "../utils/calendar.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core Chinese Calendar Arithmetic

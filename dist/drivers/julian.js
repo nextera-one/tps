@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.JulianDriver = void 0;
-const tps_string_1 = require("../utils/tps-string");
-const calendar_1 = require("../utils/calendar");
+const tps_string_js_1 = require("../utils/tps-string.js");
+const calendar_js_1 = require("../utils/calendar.js");
 class JulianDriver {
     constructor() {
         this.code = "jul";
@@ -40,8 +40,8 @@ class JulianDriver {
         ];
     }
     getComponentsFromDate(date) {
-        const jdn = (0, calendar_1.gregorianToJdn)(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
-        const { jy, jm, jd } = (0, calendar_1.jdnToJulian)(jdn);
+        const jdn = (0, calendar_js_1.gregorianToJdn)(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+        const { jy, jm, jd } = (0, calendar_js_1.jdnToJulian)(jdn);
         return {
             calendar: this.code,
             millennium: Math.floor(jy / 1000) + 1,
@@ -68,13 +68,13 @@ class JulianDriver {
         }
         const jm = components.month ?? 1;
         const jd = components.day ?? 1;
-        const jdn = (0, calendar_1.julianToJdn)(fullYear, jm, jd);
-        const { gy, gm, gd } = (0, calendar_1.jdnToGregorian)(jdn);
+        const jdn = (0, calendar_js_1.julianToJdn)(fullYear, jm, jd);
+        const { gy, gm, gd } = (0, calendar_js_1.jdnToGregorian)(jdn);
         return new Date(Date.UTC(gy, gm - 1, gd, components.hour ?? 0, components.minute ?? 0, Math.floor(components.second ?? 0), components.millisecond ?? 0));
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return (0, tps_string_1.buildTimePart)(comp);
+        return (0, tps_string_js_1.buildTimePart)(comp);
     }
     parseDate(input, _format) {
         const trimmed = input.trim();

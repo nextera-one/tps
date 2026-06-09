@@ -1,4 +1,4 @@
-import { buildTimePart } from "../utils/tps-string";
+import { buildTimePart } from "../utils/tps-string.js";
 /**
  * Gregorian calendar driver.
  * Supports robust validation and canonical Date conversions.

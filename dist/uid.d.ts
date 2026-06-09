@@ -1,7 +1,7 @@
 /**
  * TPS-UID v1 — Temporal Positioning System Identifier (Binary Reversible)
  */
-import { TimeOrder } from "./types";
+import { TimeOrder } from "./types.js";
 /**
  * Decoded result from TPSUID7RB binary format.
  */

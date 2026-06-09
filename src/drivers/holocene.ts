@@ -9,9 +9,9 @@
  *
  * This is a thin wrapper around GregorianDriver with a year offset.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
-import { buildTimePart } from "../utils/tps-string";
-import { GregorianDriver } from "./gregorian";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
+import { buildTimePart } from "../utils/tps-string.js";
+import { GregorianDriver } from "./gregorian.js";
 
 /**
  * Holocene (Human Era) Calendar Driver

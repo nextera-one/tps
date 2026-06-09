@@ -11,8 +11,8 @@
  * Data source: Pre-computed month start Julian Day Numbers for 1900–2100
  * based on the Hong Kong Observatory almanac algorithm.
  */
-import { buildTimePart } from "../utils/tps-string";
-import { gregorianToJdn, jdnToGregorian } from "../utils/calendar";
+import { buildTimePart } from "../utils/tps-string.js";
+import { gregorianToJdn, jdnToGregorian } from "../utils/calendar.js";
 // ─────────────────────────────────────────────────────────────────────────────
 // Core Chinese Calendar Arithmetic
 // ─────────────────────────────────────────────────────────────────────────────

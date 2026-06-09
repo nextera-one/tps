@@ -1,5 +1,5 @@
-import { buildTimePart } from "../utils/tps-string";
-import { gregorianToJdn, jdnToGregorian, julianToJdn, jdnToJulian, } from "../utils/calendar";
+import { buildTimePart } from "../utils/tps-string.js";
+import { gregorianToJdn, jdnToGregorian, julianToJdn, jdnToJulian, } from "../utils/calendar.js";
 export class JulianDriver {
     constructor() {
         this.code = "jul";

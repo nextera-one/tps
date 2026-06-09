@@ -9,7 +9,7 @@
  *
  * Conversion uses Julian Day Number algorithms based on jalaali-js.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
 export declare class PersianDriver implements CalendarDriver {
     readonly code = "per";
     readonly name = "Persian (Jalali/Solar Hijri)";

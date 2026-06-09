@@ -9,14 +9,14 @@
  *
  * Conversion uses Julian Day Number algorithms based on jalaali-js.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
-import { buildTimePart } from "../utils/tps-string";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
+import { buildTimePart } from "../utils/tps-string.js";
 import {
   gregorianToJdn,
   jdnToGregorian,
   persianToJdn,
   jdnToPersian,
-} from "../utils/calendar";
+} from "../utils/calendar.js";
 
 export class PersianDriver implements CalendarDriver {
   readonly code = "per";
