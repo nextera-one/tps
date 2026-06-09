@@ -14,8 +14,8 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChineseDriver = void 0;
-const tps_string_1 = require("../utils/tps-string");
-const calendar_1 = require("../utils/calendar");
+const tps_string_js_1 = require("../utils/tps-string.js");
+const calendar_js_1 = require("../utils/calendar.js");
 // ─────────────────────────────────────────────────────────────────────────────
 // Core Chinese Calendar Arithmetic
 // ─────────────────────────────────────────────────────────────────────────────
@@ -321,7 +321,7 @@ const HUANGDI_OFFSET = 2698;
  */
 function gregorianToChinese(gy, gm, gd) {
     // Locate the Chinese year whose Spring Festival (month 1, day 1) is on or before the given date
-    const inputJdn = (0, calendar_1.gregorianToJdn)(gy, gm, gd);
+    const inputJdn = (0, calendar_js_1.gregorianToJdn)(gy, gm, gd);
     let chineseYear = gy; // The Chinese New Year typically starts in the same Gregorian year
     // Check if input is before this year's Spring Festival → use previous year's cycle
     let sf = SPRING_FESTIVAL[chineseYear];
@@ -330,12 +330,12 @@ function gregorianToChinese(gy, gm, gd) {
         chineseYear = Math.max(1900, Math.min(2100, chineseYear));
         sf = SPRING_FESTIVAL[chineseYear] ?? [2, 1];
     }
-    const sfJdn = (0, calendar_1.gregorianToJdn)(chineseYear, sf[0], sf[1]);
+    const sfJdn = (0, calendar_js_1.gregorianToJdn)(chineseYear, sf[0], sf[1]);
     if (inputJdn < sfJdn) {
         chineseYear -= 1;
         sf = SPRING_FESTIVAL[chineseYear] ?? [2, 1];
     }
-    const yearStartJdn = (0, calendar_1.gregorianToJdn)(chineseYear, sf[0], sf[1]);
+    const yearStartJdn = (0, calendar_js_1.gregorianToJdn)(chineseYear, sf[0], sf[1]);
     const dayOfYear = inputJdn - yearStartJdn; // 0-indexed
     // Approximate month and day. Chinese months alternate 29/30 days.
     // Average lunar month ≈ 29.53 days
@@ -366,10 +366,10 @@ function chineseToGregorian(huangdiYear, month, day) {
     const yearClamped = Math.max(1900, Math.min(2100, chineseYear));
     const sf = SPRING_FESTIVAL[yearClamped] ?? [2, 1];
     // Start JDN of Chinese year 1st month
-    const yearStartJdn = (0, calendar_1.gregorianToJdn)(yearClamped, sf[0], sf[1]);
+    const yearStartJdn = (0, calendar_js_1.gregorianToJdn)(yearClamped, sf[0], sf[1]);
     // Approx JDN for given month/day
     const approxJdn = yearStartJdn + Math.round((month - 1) * 29.53) + (day - 1);
-    return (0, calendar_1.jdnToGregorian)(approxJdn);
+    return (0, calendar_js_1.jdnToGregorian)(approxJdn);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // Driver Class
@@ -412,7 +412,7 @@ class ChineseDriver {
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return (0, tps_string_1.buildTimePart)(comp);
+        return (0, tps_string_js_1.buildTimePart)(comp);
     }
     parseDate(input, _format) {
         const trimmed = input.trim();

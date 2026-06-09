@@ -1,5 +1,5 @@
-import { buildTimePart } from "../utils/tps-string";
-import { gregorianToJdn, jdnToGregorian, persianToJdn, jdnToPersian, } from "../utils/calendar";
+import { buildTimePart } from "../utils/tps-string.js";
+import { gregorianToJdn, jdnToGregorian, persianToJdn, jdnToPersian, } from "../utils/calendar.js";
 export class PersianDriver {
     constructor() {
         this.code = "per";

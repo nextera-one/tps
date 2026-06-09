@@ -1,5 +1,5 @@
-import { buildTimePart } from "../utils/tps-string";
-import { GregorianDriver } from "./gregorian";
+import { buildTimePart } from "../utils/tps-string.js";
+import { GregorianDriver } from "./gregorian.js";
 /**
  * Holocene (Human Era) Calendar Driver
  */

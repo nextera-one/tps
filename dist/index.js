@@ -39,30 +39,30 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TPS = exports.getOffsetString = exports.localToUtc = exports.utcToLocal = exports.DriverManager = exports.Env = void 0;
 // built-in drivers are registered automatically; importing them here
 // ensures they are included when the library bundler/tree-shaker runs.
-const gregorian_1 = require("./drivers/gregorian");
-const unix_1 = require("./drivers/unix");
-const tps_1 = require("./drivers/tps");
-const persian_1 = require("./drivers/persian");
-const hijri_1 = require("./drivers/hijri");
-const julian_1 = require("./drivers/julian");
-const holocene_1 = require("./drivers/holocene");
-const chinese_1 = require("./drivers/chinese");
-__exportStar(require("./types"), exports);
-__exportStar(require("./uid"), exports);
-__exportStar(require("./date"), exports);
-var env_1 = require("./utils/env");
-Object.defineProperty(exports, "Env", { enumerable: true, get: function () { return env_1.Env; } });
-var driver_manager_1 = require("./driver-manager");
-Object.defineProperty(exports, "DriverManager", { enumerable: true, get: function () { return driver_manager_1.DriverManager; } });
-var timezone_1 = require("./utils/timezone");
-Object.defineProperty(exports, "utcToLocal", { enumerable: true, get: function () { return timezone_1.utcToLocal; } });
-Object.defineProperty(exports, "localToUtc", { enumerable: true, get: function () { return timezone_1.localToUtc; } });
-Object.defineProperty(exports, "getOffsetString", { enumerable: true, get: function () { return timezone_1.getOffsetString; } });
-const driver_manager_2 = require("./driver-manager");
-const tps_string_1 = require("./utils/tps-string");
-const timezone_2 = require("./utils/timezone");
-const tps_native_1 = require("./utils/tps-native");
-const types_1 = require("./types");
+const gregorian_js_1 = require("./drivers/gregorian.js");
+const unix_js_1 = require("./drivers/unix.js");
+const tps_js_1 = require("./drivers/tps.js");
+const persian_js_1 = require("./drivers/persian.js");
+const hijri_js_1 = require("./drivers/hijri.js");
+const julian_js_1 = require("./drivers/julian.js");
+const holocene_js_1 = require("./drivers/holocene.js");
+const chinese_js_1 = require("./drivers/chinese.js");
+__exportStar(require("./types.js"), exports);
+__exportStar(require("./uid.js"), exports);
+__exportStar(require("./date.js"), exports);
+var env_js_1 = require("./utils/env.js");
+Object.defineProperty(exports, "Env", { enumerable: true, get: function () { return env_js_1.Env; } });
+var driver_manager_js_1 = require("./driver-manager.js");
+Object.defineProperty(exports, "DriverManager", { enumerable: true, get: function () { return driver_manager_js_1.DriverManager; } });
+var timezone_js_1 = require("./utils/timezone.js");
+Object.defineProperty(exports, "utcToLocal", { enumerable: true, get: function () { return timezone_js_1.utcToLocal; } });
+Object.defineProperty(exports, "localToUtc", { enumerable: true, get: function () { return timezone_js_1.localToUtc; } });
+Object.defineProperty(exports, "getOffsetString", { enumerable: true, get: function () { return timezone_js_1.getOffsetString; } });
+const driver_manager_js_2 = require("./driver-manager.js");
+const tps_string_js_1 = require("./utils/tps-string.js");
+const timezone_js_2 = require("./utils/timezone.js");
+const tps_native_js_1 = require("./utils/tps-native.js");
+const types_js_1 = require("./types.js");
 class TPS {
     /**
      * Registers a calendar driver plugin.
@@ -229,10 +229,10 @@ class TPS {
             return false;
         const indexedMatch = sanitized.match(/(?:^T:|@T:)([a-z]{3,4})\.(i[^!;?#]+)/i);
         if (indexedMatch) {
-            if (indexedMatch[1].toLowerCase() !== types_1.DefaultCalendars.TPS) {
+            if (indexedMatch[1].toLowerCase() !== types_js_1.DefaultCalendars.TPS) {
                 return false;
             }
-            if (!(0, tps_native_1.isTpsIndexedToken)(indexedMatch[2])) {
+            if (!(0, tps_native_js_1.isTpsIndexedToken)(indexedMatch[2])) {
                 return this.parse(sanitized) !== null;
             }
             return this.parse(sanitized) !== null;
@@ -265,7 +265,7 @@ class TPS {
                 timeStr = timeStr.split(/[!;?#]/)[0];
             }
             if (timeStr) {
-                const parsed = (0, tps_string_1.parseTimeString)(timeStr);
+                const parsed = (0, tps_string_js_1.parseTimeString)(timeStr);
                 if (!parsed)
                     return null;
                 Object.assign(comp, parsed.components);
@@ -292,7 +292,7 @@ class TPS {
             // Strip extension/query/fragment suffix so parseTimeString sees only tokens
             timeOnly = input.split(/[;?#]/)[0];
         }
-        const parsed = (0, tps_string_1.parseTimeString)(timeOnly);
+        const parsed = (0, tps_string_js_1.parseTimeString)(timeOnly);
         if (!parsed)
             return null;
         const comp = parsed.components;
@@ -319,7 +319,7 @@ class TPS {
         return comp;
     }
     static buildTimeString(comp, opts) {
-        let time = (0, tps_string_1.buildTimePart)(comp, opts);
+        let time = (0, tps_string_js_1.buildTimePart)(comp, opts);
         if (comp.extensions && Object.keys(comp.extensions).length > 0) {
             const extStrings = Object.entries(comp.extensions).map(([k, v]) => {
                 return `${k.toUpperCase()}:${v}`;
@@ -334,23 +334,23 @@ class TPS {
     }
     static toTpsNativeComponents(input) {
         if (input instanceof Date) {
-            return (0, tps_native_1.normalizeTpsComponents)({
-                calendar: types_1.DefaultCalendars.TPS,
-                ...(0, tps_native_1.buildTpsComponentsFromDayIndex)((0, tps_native_1.getTpsDayIndex)(input), (0, tps_native_1.getTpsDayFraction)(input)),
+            return (0, tps_native_js_1.normalizeTpsComponents)({
+                calendar: types_js_1.DefaultCalendars.TPS,
+                ...(0, tps_native_js_1.buildTpsComponentsFromDayIndex)((0, tps_native_js_1.getTpsDayIndex)(input), (0, tps_native_js_1.getTpsDayFraction)(input)),
             });
         }
         if (typeof input === "string") {
             const parsed = this.parse(input);
-            if (!parsed || parsed.calendar !== types_1.DefaultCalendars.TPS)
+            if (!parsed || parsed.calendar !== types_js_1.DefaultCalendars.TPS)
                 return null;
-            return (0, tps_native_1.normalizeTpsComponents)(parsed);
+            return (0, tps_native_js_1.normalizeTpsComponents)(parsed);
         }
-        if ((input.calendar ?? types_1.DefaultCalendars.TPS) !== types_1.DefaultCalendars.TPS) {
+        if ((input.calendar ?? types_js_1.DefaultCalendars.TPS) !== types_js_1.DefaultCalendars.TPS) {
             return null;
         }
-        return (0, tps_native_1.normalizeTpsComponents)({
+        return (0, tps_native_js_1.normalizeTpsComponents)({
             ...input,
-            calendar: types_1.DefaultCalendars.TPS,
+            calendar: types_js_1.DefaultCalendars.TPS,
         });
     }
     static renderTpsLikeInput(originalInput, comp, opts) {
@@ -441,7 +441,7 @@ class TPS {
         // ── 2. Actor (/A:...) ─────────────────────────────────────────────────────
         const actorPart = comp.actor ? `/A:${comp.actor}` : "";
         // ── 3. Time (mandatory 9 tokens) ─────────────────────────────────────────
-        const timePart = (0, tps_string_1.buildTimePart)(comp, opts);
+        const timePart = (0, tps_string_js_1.buildTimePart)(comp, opts);
         // ── 4. Extensions (;KEY:val;...) ─────────────────────────────────────────
         let extPart = "";
         if (comp.extensions && Object.keys(comp.extensions).length > 0) {
@@ -468,7 +468,7 @@ class TPS {
      *   supported key is `order` which may be `'ascending'` or `'descending'`.
      * @returns Canonical string (e.g., "T:tps.m3.c1.y26...").
      */
-    static fromDate(date = new Date(), calendar = types_1.DefaultCalendars.TPS, opts) {
+    static fromDate(date = new Date(), calendar = types_js_1.DefaultCalendars.TPS, opts) {
         const normalizedCalendar = calendar.toLowerCase();
         const driver = this.driverManager.get(normalizedCalendar);
         if (driver) {
@@ -481,21 +481,21 @@ class TPS {
                 comp.calendar = normalizedCalendar;
                 if (opts?.order)
                     comp.order = opts.order;
-                return (0, tps_string_1.buildTimePart)(comp, opts);
+                return (0, tps_string_js_1.buildTimePart)(comp, opts);
             }
             return driver.getFromDate(date);
         }
         // Fallback for old built-in calendars (shouldn't happen once drivers are
         // registered, but kept for backwards compatibility).
         const comp = { calendar: normalizedCalendar };
-        if (normalizedCalendar === types_1.DefaultCalendars.UNIX) {
+        if (normalizedCalendar === types_js_1.DefaultCalendars.UNIX) {
             const s = (date.getTime() / 1000).toFixed(3);
             comp.unixSeconds = parseFloat(s);
             if (opts?.order)
                 comp.order = opts.order;
-            return (0, tps_string_1.buildTimePart)(comp, opts);
+            return (0, tps_string_js_1.buildTimePart)(comp, opts);
         }
-        if (normalizedCalendar === types_1.DefaultCalendars.GREG) {
+        if (normalizedCalendar === types_js_1.DefaultCalendars.GREG) {
             const fullYear = date.getUTCFullYear();
             comp.millennium = Math.floor(fullYear / 1000) + 1;
             comp.century = Math.floor((fullYear % 1000) / 100) + 1;
@@ -508,7 +508,7 @@ class TPS {
             comp.millisecond = date.getUTCMilliseconds();
             if (opts?.order)
                 comp.order = opts.order;
-            return (0, tps_string_1.buildTimePart)(comp, opts);
+            return (0, tps_string_js_1.buildTimePart)(comp, opts);
         }
         throw new Error(`Calendar driver '${normalizedCalendar}' not implemented. Register a driver.`);
     }
@@ -537,7 +537,7 @@ class TPS {
         const parsed = this.parse(tpsString);
         if (!parsed)
             return null;
-        const cal = parsed.calendar || types_1.DefaultCalendars.TPS;
+        const cal = parsed.calendar || types_js_1.DefaultCalendars.TPS;
         const driver = this.driverManager.get(cal);
         if (!driver) {
             console.error(`Calendar driver '${cal}' not registered.`);
@@ -549,14 +549,14 @@ class TPS {
         const tz = parsed.extensions?.["tz"];
         if (tz && date) {
             const localMs = date.getTime();
-            const utcMs = (0, timezone_2.localToUtc)(localMs, tz);
+            const utcMs = (0, timezone_js_2.localToUtc)(localMs, tz);
             return new Date(utcMs);
         }
         return date;
     }
     static toDayIndex(input) {
         const comp = this.toTpsNativeComponents(input);
-        return comp ? (0, tps_native_1.getTpsDayIndex)(comp) : null;
+        return comp ? (0, tps_native_js_1.getTpsDayIndex)(comp) : null;
     }
     static fromDayIndex(dayIndex, dayFraction = 0, opts) {
         if (!Number.isSafeInteger(dayIndex) || dayIndex < 0) {
@@ -565,27 +565,27 @@ class TPS {
         if (!Number.isFinite(dayFraction) || dayFraction < 0 || dayFraction >= 1) {
             throw new Error("TPS.fromDayIndex: dayFraction must be in [0, 1)");
         }
-        const comp = (0, tps_native_1.buildTpsComponentsFromDayIndex)(dayIndex, dayFraction);
+        const comp = (0, tps_native_js_1.buildTpsComponentsFromDayIndex)(dayIndex, dayFraction);
         if (opts?.order)
             comp.order = opts.order;
-        return (0, tps_string_1.buildTimePart)(comp, opts);
+        return (0, tps_string_js_1.buildTimePart)(comp, opts);
     }
     static getDayFraction(input) {
         const comp = this.toTpsNativeComponents(input);
-        return comp ? (0, tps_native_1.getTpsDayFraction)(comp) : null;
+        return comp ? (0, tps_native_js_1.getTpsDayFraction)(comp) : null;
     }
     static getSubDayMilliseconds(input) {
         const comp = this.toTpsNativeComponents(input);
-        return comp ? (0, tps_native_1.getTpsSubDayMilliseconds)(comp) : null;
+        return comp ? (0, tps_native_js_1.getTpsSubDayMilliseconds)(comp) : null;
     }
     static expandIndexedTime(input) {
         const sanitized = this.sanitizeTimeInput(input);
         const indexedMatch = sanitized.match(/(?:^T:|@T:)([a-z]{3,4})\.(i[^!;?#]+)/i);
         if (!indexedMatch ||
-            indexedMatch[1].toLowerCase() !== types_1.DefaultCalendars.TPS ||
-            !(0, tps_native_1.isTpsIndexedToken)(indexedMatch[2])) {
+            indexedMatch[1].toLowerCase() !== types_js_1.DefaultCalendars.TPS ||
+            !(0, tps_native_js_1.isTpsIndexedToken)(indexedMatch[2])) {
             const parsed = this.parse(sanitized);
-            if (!parsed || parsed.calendar !== types_1.DefaultCalendars.TPS)
+            if (!parsed || parsed.calendar !== types_js_1.DefaultCalendars.TPS)
                 return null;
             return input.trim();
         }
@@ -730,7 +730,7 @@ class TPS {
      * TPS.now('hij'); // "T:hij.y1447.m09.d05.h06.m30.s00"
      * ```
      */
-    static now(calendar = types_1.DefaultCalendars.GREG, opts) {
+    static now(calendar = types_js_1.DefaultCalendars.GREG, opts) {
         return this.fromDate(new Date(), calendar, opts);
     }
     /**
@@ -775,7 +775,7 @@ class TPS {
         if (!date)
             return null;
         const parsed = this.parse(tpsStr);
-        const calendar = parsed?.calendar ?? types_1.DefaultCalendars.GREG;
+        const calendar = parsed?.calendar ?? types_js_1.DefaultCalendars.GREG;
         const order = parsed?.order;
         const deltaMs = (duration.days ?? 0) * 86400000 +
             (duration.hours ?? 0) * 3600000 +
@@ -979,7 +979,7 @@ class TPS {
 exports.TPS = TPS;
 // --- PLUGIN REGISTRY ---
 /** Shared DriverManager instance — use TPS.driverManager for direct access. */
-TPS.driverManager = new driver_manager_2.DriverManager();
+TPS.driverManager = new driver_manager_js_2.DriverManager();
 // --- REGEX (v0.6.0) ---
 // The URI and time regexes are intentionally permissive in the location &
 // extension sections — detailed semantic parsing happens in
@@ -1013,14 +1013,14 @@ TPS.REGEX_TIME = new RegExp("^T:(?<calendar>[a-z]{3,4})" +
     "(?:#C:(?<context>.+))?$");
 // register built-in drivers and set default
 // (tps and gregorian provide canonical conversions before unix)
-TPS.registerDriver(new tps_1.TpsDriver());
-TPS.registerDriver(new gregorian_1.GregorianDriver());
-TPS.registerDriver(new unix_1.UnixDriver());
-TPS.registerDriver(new persian_1.PersianDriver());
-TPS.registerDriver(new hijri_1.HijriDriver());
-TPS.registerDriver(new julian_1.JulianDriver());
-TPS.registerDriver(new holocene_1.HoloceneDriver());
-TPS.registerDriver(new chinese_1.ChineseDriver());
+TPS.registerDriver(new tps_js_1.TpsDriver());
+TPS.registerDriver(new gregorian_js_1.GregorianDriver());
+TPS.registerDriver(new unix_js_1.UnixDriver());
+TPS.registerDriver(new persian_js_1.PersianDriver());
+TPS.registerDriver(new hijri_js_1.HijriDriver());
+TPS.registerDriver(new julian_js_1.JulianDriver());
+TPS.registerDriver(new holocene_js_1.HoloceneDriver());
+TPS.registerDriver(new chinese_js_1.ChineseDriver());
 /**
  * `TpsDate` is a Date-like wrapper with native TPS conversion helpers.
  *

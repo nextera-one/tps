@@ -1,8 +1,8 @@
 /**
  * TpsDate Date-like wrapper with native TPS conversion helpers.
  */
-import { DefaultCalendars, } from "./types";
-import { TPS } from "./index";
+import { DefaultCalendars, } from "./types.js";
+import { TPS } from "./index.js";
 export class TpsDate {
     constructor(...args) {
         this._cachedComponents = null;

@@ -9,14 +9,14 @@
  *
  * Conversion uses Julian Day Number algorithms.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
-import { buildTimePart } from "../utils/tps-string";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
+import { buildTimePart } from "../utils/tps-string.js";
 import {
   gregorianToJdn,
   jdnToGregorian,
   julianToJdn,
   jdnToJulian,
-} from "../utils/calendar";
+} from "../utils/calendar.js";
 
 export class JulianDriver implements CalendarDriver {
   readonly code = "jul";

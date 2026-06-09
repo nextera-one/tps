@@ -6,8 +6,8 @@ import {
   TPSComponents,
   DefaultCalendars,
   TPSTimeOptions,
-} from "./types";
-import { TPS } from "./index";
+} from "./types.js";
+import { TPS } from "./index.js";
 
 export class TpsDate {
   private readonly internal: Date;

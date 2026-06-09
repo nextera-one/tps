@@ -1,5 +1,5 @@
-import { buildTimePart } from "../utils/tps-string";
-import { gregorianToHijri, hijriToGregorian } from "../utils/calendar";
+import { buildTimePart } from "../utils/tps-string.js";
+import { gregorianToHijri, hijriToGregorian } from "../utils/calendar.js";
 export class HijriDriver {
     constructor() {
         this.code = "hij";

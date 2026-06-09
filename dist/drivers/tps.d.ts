@@ -7,7 +7,7 @@
  * - Year shape: 12 months × 4 weeks × 7 days = 336 days
  * - Indexed form: `T:tps.iN[.F]`
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
 /**
  * TPS calendar driver for canonical TPS time strings.
  *

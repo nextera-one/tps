@@ -1,4 +1,4 @@
-import { buildTimePart } from "../utils/tps-string";
+import { buildTimePart } from "../utils/tps-string.js";
 /**
  * Unix calendar driver. Represents the epoch timestamp in seconds with
  * fractional milliseconds.

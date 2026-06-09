@@ -20,14 +20,14 @@
  * - Added structural anchors (bldg, floor, room, zone)
  * - Added geospatial cell systems (S2, H3, Plus Code, what3words)
  */
-export * from "./types";
-export * from "./uid";
-export * from "./date";
-export { Env } from "./utils/env";
-export { DriverManager } from "./driver-manager";
-export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone";
-import { DriverManager } from "./driver-manager";
-import { CalendarDriver, TPSComponents, TimeOrder, TPSTimeOptions } from "./types";
+export * from "./types.js";
+export * from "./uid.js";
+export * from "./date.js";
+export { Env } from "./utils/env.js";
+export { DriverManager } from "./driver-manager.js";
+export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone.js";
+import { DriverManager } from "./driver-manager.js";
+import { CalendarDriver, TPSComponents, TimeOrder, TPSTimeOptions } from "./types.js";
 export declare class TPS {
     /** Shared DriverManager instance — use TPS.driverManager for direct access. */
     static readonly driverManager: DriverManager;

@@ -1,4 +1,4 @@
-import { TPSComponents } from "../types";
+import { TPSComponents } from "../types.js";
 
 export const TPS_DAY_MS = 24 * 60 * 60 * 1000;
 export const TPS_DAY_START_OFFSET_MS = 7 * 60 * 60 * 1000;

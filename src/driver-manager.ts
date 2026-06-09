@@ -3,7 +3,7 @@
  * Manages the registry of calendar driver plugins.
  */
 
-import { CalendarDriver } from "./types";
+import { CalendarDriver } from "./types.js";
 
 /**
  * A dedicated registry for TPS calendar driver plugins.

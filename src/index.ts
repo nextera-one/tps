@@ -23,24 +23,24 @@
 
 // built-in drivers are registered automatically; importing them here
 // ensures they are included when the library bundler/tree-shaker runs.
-import { GregorianDriver } from "./drivers/gregorian";
-import { UnixDriver } from "./drivers/unix";
-import { TpsDriver } from "./drivers/tps";
-import { PersianDriver } from "./drivers/persian";
-import { HijriDriver } from "./drivers/hijri";
-import { JulianDriver } from "./drivers/julian";
-import { HoloceneDriver } from "./drivers/holocene";
-import { ChineseDriver } from "./drivers/chinese";
+import { GregorianDriver } from "./drivers/gregorian.js";
+import { UnixDriver } from "./drivers/unix.js";
+import { TpsDriver } from "./drivers/tps.js";
+import { PersianDriver } from "./drivers/persian.js";
+import { HijriDriver } from "./drivers/hijri.js";
+import { JulianDriver } from "./drivers/julian.js";
+import { HoloceneDriver } from "./drivers/holocene.js";
+import { ChineseDriver } from "./drivers/chinese.js";
 
-export * from "./types";
-export * from "./uid";
-export * from "./date";
-export { Env } from "./utils/env";
-export { DriverManager } from "./driver-manager";
-export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone";
-import { DriverManager } from "./driver-manager";
-import { buildTimePart, parseTimeString } from "./utils/tps-string";
-import { localToUtc } from "./utils/timezone";
+export * from "./types.js";
+export * from "./uid.js";
+export * from "./date.js";
+export { Env } from "./utils/env.js";
+export { DriverManager } from "./driver-manager.js";
+export { utcToLocal, localToUtc, getOffsetString } from "./utils/timezone.js";
+import { DriverManager } from "./driver-manager.js";
+import { buildTimePart, parseTimeString } from "./utils/tps-string.js";
+import { localToUtc } from "./utils/timezone.js";
 import {
   buildTpsComponentsFromDayIndex,
   getTpsDayFraction,
@@ -48,7 +48,7 @@ import {
   getTpsSubDayMilliseconds,
   isTpsIndexedToken,
   normalizeTpsComponents,
-} from "./utils/tps-native";
+} from "./utils/tps-native.js";
 
 import {
   CalendarDriver,
@@ -56,7 +56,7 @@ import {
   TimeOrder,
   DefaultCalendars,
   TPSTimeOptions,
-} from "./types";
+} from "./types.js";
 
 export class TPS {
   // --- PLUGIN REGISTRY ---

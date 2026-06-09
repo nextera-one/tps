@@ -1,7 +1,7 @@
 /**
  * TpsDate Date-like wrapper with native TPS conversion helpers.
  */
-import { TPSTimeOptions } from "./types";
+import { TPSTimeOptions } from "./types.js";
 export declare class TpsDate {
     private readonly internal;
     private _cachedComponents;

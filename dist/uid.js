@@ -4,21 +4,21 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TPSUID7RB = void 0;
-const index_1 = require("./index");
-const types_1 = require("./types");
-const env_1 = require("./utils/env");
+const index_js_1 = require("./index.js");
+const types_js_1 = require("./types.js");
+const env_js_1 = require("./utils/env.js");
 class TPSUID7RB {
     static encodeBinary(tps, opts = {}) {
-        tps = index_1.TPS.expandIndexedTime(tps) ?? tps;
+        tps = index_js_1.TPS.expandIndexedTime(tps) ?? tps;
         const compress = opts.compress ?? false;
         const epochMs = opts.epochMs ?? this.epochMsFromTPSString(tps);
         if (!Number.isInteger(epochMs) || epochMs < 0 || epochMs > 0xffffffffffff) {
             throw new Error("TPSUID7RB: Invalid epochMs (must be 48-bit non-negative integer)");
         }
         const flags = compress ? 0x01 : 0x00;
-        const nonceBuf = env_1.Env.randomBytes(4);
+        const nonceBuf = env_js_1.Env.randomBytes(4);
         const tpsUtf8 = new TextEncoder().encode(tps);
-        const payload = compress ? env_1.Env.deflate(tpsUtf8) : tpsUtf8;
+        const payload = compress ? env_js_1.Env.deflate(tpsUtf8) : tpsUtf8;
         const lenVar = this.uvarintEncode(payload.length);
         const out = new Uint8Array(4 + 1 + 1 + 6 + 4 + lenVar.length + payload.length);
         let offset = 0;
@@ -60,7 +60,7 @@ class TPSUID7RB {
         if (offset + tpsLen > bytes.length)
             throw new Error("TPSUID7RB: length overflow");
         const payload = bytes.slice(offset, offset + tpsLen);
-        const tpsUtf8 = compressed ? env_1.Env.inflate(payload) : payload;
+        const tpsUtf8 = compressed ? env_js_1.Env.inflate(payload) : payload;
         const tps = new TextDecoder().decode(tpsUtf8);
         return { version: "tpsuid7rb", epochMs, compressed, nonce, tps };
     }
@@ -79,7 +79,7 @@ class TPSUID7RB {
     }
     static generate(opts) {
         const now = new Date();
-        const time = index_1.TPS.fromDate(now, types_1.DefaultCalendars.TPS, {
+        const time = index_js_1.TPS.fromDate(now, types_js_1.DefaultCalendars.TPS, {
             order: opts?.order,
         });
         let space = "unknown";
@@ -95,16 +95,16 @@ class TPSUID7RB {
         });
     }
     static seal(tps, privateKey, opts) {
-        tps = index_1.TPS.expandIndexedTime(tps) ?? tps;
+        tps = index_js_1.TPS.expandIndexedTime(tps) ?? tps;
         const compress = opts?.compress ?? false;
         const epochMs = opts?.epochMs ?? this.epochMsFromTPSString(tps);
         if (!Number.isInteger(epochMs) || epochMs < 0 || epochMs > 0xffffffffffff) {
             throw new Error("TPSUID7RB: Invalid epochMs");
         }
         const flags = (compress ? 0x01 : 0x00) | 0x02; // Set SEAL bit
-        const nonceBuf = env_1.Env.randomBytes(4);
+        const nonceBuf = env_js_1.Env.randomBytes(4);
         const tpsUtf8 = new TextEncoder().encode(tps);
-        const payload = compress ? env_1.Env.deflate(tpsUtf8) : tpsUtf8;
+        const payload = compress ? env_js_1.Env.deflate(tpsUtf8) : tpsUtf8;
         const lenVar = this.uvarintEncode(payload.length);
         const contentLen = 4 + 1 + 1 + 6 + 4 + lenVar.length + payload.length;
         const content = new Uint8Array(contentLen);
@@ -120,7 +120,7 @@ class TPSUID7RB {
         content.set(lenVar, offset);
         offset += lenVar.length;
         content.set(payload, offset);
-        const signature = env_1.Env.signEd25519(content, privateKey);
+        const signature = env_js_1.Env.signEd25519(content, privateKey);
         const final = new Uint8Array(contentLen + 1 + signature.length);
         final.set(content, 0);
         final.set([0x01], contentLen); // Ed25519 type
@@ -137,18 +137,18 @@ class TPSUID7RB {
         const payloadEnd = offset + bytesRead + tpsLen;
         const content = sealedBytes.slice(0, payloadEnd);
         const signature = sealedBytes.slice(payloadEnd + 1);
-        if (!env_1.Env.verifyEd25519(content, signature, publicKey)) {
+        if (!env_js_1.Env.verifyEd25519(content, signature, publicKey)) {
             throw new Error("TPSUID7RB: verification failed");
         }
         return this.decodeBinary(content);
     }
     static epochMsFromTPSString(tps) {
-        tps = index_1.TPS.expandIndexedTime(tps) ?? tps;
-        const date = index_1.TPS.toDate(tps);
+        tps = index_js_1.TPS.expandIndexedTime(tps) ?? tps;
+        const date = index_js_1.TPS.toDate(tps);
         if (date)
             return date.getTime();
         const stripped = tps.replace(/;[^?#]*/, "").replace(/[?#].*$/, "");
-        const retryDate = index_1.TPS.toDate(stripped);
+        const retryDate = index_js_1.TPS.toDate(stripped);
         if (!retryDate)
             throw new Error("TPS: unable to parse date for epoch");
         return retryDate.getTime();

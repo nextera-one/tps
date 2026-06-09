@@ -1,4 +1,4 @@
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
 /**
  * Gregorian calendar driver.
  * Supports robust validation and canonical Date conversions.

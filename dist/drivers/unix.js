@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UnixDriver = void 0;
-const tps_string_1 = require("../utils/tps-string");
+const tps_string_js_1 = require("../utils/tps-string.js");
 /**
  * Unix calendar driver. Represents the epoch timestamp in seconds with
  * fractional milliseconds.
@@ -22,7 +22,7 @@ class UnixDriver {
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return (0, tps_string_1.buildTimePart)(comp);
+        return (0, tps_string_js_1.buildTimePart)(comp);
     }
     parseDate(input, _format) {
         const s = input.trim();

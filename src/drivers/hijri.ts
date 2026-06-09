@@ -10,9 +10,9 @@
  * This uses the Tabular Islamic Calendar (civil/Type II-A) algorithm
  * based on the formulas from Meeus "Astronomical Algorithms".
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
-import { buildTimePart } from "../utils/tps-string";
-import { gregorianToHijri, hijriToGregorian } from "../utils/calendar";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
+import { buildTimePart } from "../utils/tps-string.js";
+import { gregorianToHijri, hijriToGregorian } from "../utils/calendar.js";
 
 export class HijriDriver implements CalendarDriver {
   readonly code = "hij";

@@ -1,6 +1,6 @@
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
-import { buildTimePart } from "../utils/tps-string";
-import { TPS } from "../index"; // Keeping TPS import as its usage in getDateFromComponents was not addressed by the instruction.
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
+import { buildTimePart } from "../utils/tps-string.js";
+import { TPS } from "../index.js"; // Keeping TPS import as its usage in getDateFromComponents was not addressed by the instruction.
 
 /**
  * Unix calendar driver. Represents the epoch timestamp in seconds with

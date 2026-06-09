@@ -6,6 +6,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.8.1] — 2026-06-09
+
+### Fixed
+
+- **Native ESM is now loadable on Node.** The ESM build (`dist/esm`) previously
+  emitted extensionless relative imports (e.g. `./drivers/gregorian`), which
+  Node's ESM resolver rejects with `ERR_MODULE_NOT_FOUND`. All relative imports
+  now carry explicit `.js` extensions, and `dist/esm/package.json` declares
+  `{"type":"module"}` so Node treats the build as ESM without a reparse warning.
+- **Crypto/zlib now work under ESM.** Node detection used `typeof require`, which
+  is `undefined` in ESM even on Node — so `randomBytes`, `deflate`/`inflate`, and
+  Ed25519 sign/verify all threw "not available in this environment" when the
+  package was imported as ESM. Detection now uses `process.versions.node`,
+  `randomBytes` prefers Web Crypto (available in both module systems), and Node
+  builtins load via `process.getBuiltinModule` when `require` is absent.
+
+### Changed
+
+- ESM `tsconfig` uses `module: ESNext` so extensions are preserved in the emit.
+- `experimentalResolver` enabled for `ts-node` so the test suite resolves the
+  `.js`-suffixed source imports back to their `.ts` sources.
+
 ## [0.8.0] — 2026-04-04
 
 ### Added

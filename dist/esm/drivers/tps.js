@@ -1,5 +1,5 @@
-import { buildTimePart } from "../utils/tps-string";
-import { buildTpsComponentsFromDayIndex, getTpsFullYear, normalizeTpsComponents, parseTpsIndexedToken, TPS_DAY_MS, TPS_DAYS_PER_MONTH, TPS_EPOCH_START_MS, TPS_MONTHS_PER_YEAR, validateTpsComponents, } from "../utils/tps-native";
+import { buildTimePart } from "../utils/tps-string.js";
+import { buildTpsComponentsFromDayIndex, getTpsFullYear, normalizeTpsComponents, parseTpsIndexedToken, TPS_DAY_MS, TPS_DAYS_PER_MONTH, TPS_EPOCH_START_MS, TPS_MONTHS_PER_YEAR, validateTpsComponents, } from "../utils/tps-native.js";
 /**
  * TPS calendar driver for canonical TPS time strings.
  *

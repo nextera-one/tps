@@ -4,8 +4,8 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TpsDate = void 0;
-const types_1 = require("./types");
-const index_1 = require("./index");
+const types_js_1 = require("./types.js");
+const index_js_1 = require("./index.js");
 class TpsDate {
     constructor(...args) {
         this._cachedComponents = null;
@@ -25,7 +25,7 @@ class TpsDate {
                 return;
             }
             if (typeof value === "string" && TpsDate.looksLikeTPS(value)) {
-                const parsed = index_1.TPS.toDate(value);
+                const parsed = index_js_1.TPS.toDate(value);
                 if (!parsed) {
                     throw new RangeError(`Invalid TPS date string: ${value}`);
                 }
@@ -43,11 +43,11 @@ class TpsDate {
         return s.startsWith("tps://") || s.startsWith("T:") || s.startsWith("t:");
     }
     getTpsComponents() {
-        const currentTps = this.toTPS(types_1.DefaultCalendars.TPS);
+        const currentTps = this.toTPS(types_js_1.DefaultCalendars.TPS);
         if (this._cachedTps === currentTps && this._cachedComponents) {
             return this._cachedComponents;
         }
-        const parsed = index_1.TPS.parse(currentTps);
+        const parsed = index_js_1.TPS.parse(currentTps);
         if (!parsed) {
             throw new Error("TpsDate: failed to derive TPS components");
         }
@@ -64,7 +64,7 @@ class TpsDate {
     }
     static parse(input) {
         if (this.looksLikeTPS(input)) {
-            const d = index_1.TPS.toDate(input);
+            const d = index_js_1.TPS.toDate(input);
             return d ? d.getTime() : Number.NaN;
         }
         return Date.parse(input);
@@ -81,16 +81,16 @@ class TpsDate {
     toDate() {
         return this.toGregorianDate();
     }
-    toTPS(calendar = types_1.DefaultCalendars.TPS, opts) {
-        return index_1.TPS.fromDate(this.internal, calendar, opts);
+    toTPS(calendar = types_js_1.DefaultCalendars.TPS, opts) {
+        return index_js_1.TPS.fromDate(this.internal, calendar, opts);
     }
-    toTPSURI(calendar = types_1.DefaultCalendars.TPS, opts) {
+    toTPSURI(calendar = types_js_1.DefaultCalendars.TPS, opts) {
         const time = this.toTPS(calendar, {
             order: opts?.order,
             timeMode: opts?.timeMode,
             indexedPrecision: opts?.indexedPrecision,
         });
-        const comp = index_1.TPS.parse(time);
+        const comp = index_js_1.TPS.parse(time);
         if (opts?.latitude !== undefined && opts?.longitude !== undefined) {
             comp.latitude = opts.latitude;
             comp.longitude = opts.longitude;
@@ -106,7 +106,7 @@ class TpsDate {
         else {
             comp.isUnknownLocation = true;
         }
-        return index_1.TPS.toURI(comp);
+        return index_js_1.TPS.toURI(comp);
     }
     getTime() {
         return this.internal.getTime();
@@ -115,7 +115,7 @@ class TpsDate {
         return this.internal.valueOf();
     }
     toString() {
-        return this.toTPS(types_1.DefaultCalendars.TPS);
+        return this.toTPS(types_js_1.DefaultCalendars.TPS);
     }
     toISOString() {
         return this.internal.toISOString();

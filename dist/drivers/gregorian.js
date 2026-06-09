@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GregorianDriver = void 0;
-const tps_string_1 = require("../utils/tps-string");
+const tps_string_js_1 = require("../utils/tps-string.js");
 /**
  * Gregorian calendar driver.
  * Supports robust validation and canonical Date conversions.
@@ -35,7 +35,7 @@ class GregorianDriver {
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return (0, tps_string_1.buildTimePart)(comp);
+        return (0, tps_string_js_1.buildTimePart)(comp);
     }
     // --- optional helpers --------------------------------------------------
     parseDate(input, format) {

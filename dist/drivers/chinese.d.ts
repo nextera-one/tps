@@ -11,7 +11,7 @@
  * Data source: Pre-computed month start Julian Day Numbers for 1900–2100
  * based on the Hong Kong Observatory almanac algorithm.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
 export declare class ChineseDriver implements CalendarDriver {
     readonly code = "chin";
     readonly name = "Chinese Lunisolar";

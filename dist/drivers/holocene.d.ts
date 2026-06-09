@@ -9,7 +9,7 @@
  *
  * This is a thin wrapper around GregorianDriver with a year offset.
  */
-import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types";
+import { CalendarDriver, CalendarMetadata, TPSComponents } from "../types.js";
 /**
  * Holocene (Human Era) Calendar Driver
  */

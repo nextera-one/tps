@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HoloceneDriver = void 0;
-const tps_string_1 = require("../utils/tps-string");
-const gregorian_1 = require("./gregorian");
+const tps_string_js_1 = require("../utils/tps-string.js");
+const gregorian_js_1 = require("./gregorian.js");
 /**
  * Holocene (Human Era) Calendar Driver
  */
@@ -10,7 +10,7 @@ class HoloceneDriver {
     constructor() {
         this.code = "holo";
         this.name = "Holocene (Human Era)";
-        this.gregorian = new gregorian_1.GregorianDriver();
+        this.gregorian = new gregorian_js_1.GregorianDriver();
         this.YEAR_OFFSET = 10000;
     }
     getComponentsFromDate(date) {
@@ -35,7 +35,7 @@ class HoloceneDriver {
     }
     getFromDate(date) {
         const comp = this.getComponentsFromDate(date);
-        return (0, tps_string_1.buildTimePart)(comp);
+        return (0, tps_string_js_1.buildTimePart)(comp);
     }
     parseDate(input, _format) {
         const m = input
